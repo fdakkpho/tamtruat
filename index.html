@@ -998,12 +998,12 @@ function viewLogin() {
     h('div', null, h('div', {class:'eyebrow'}, 'เข้าสู่ระบบ'), h('h1', null, 'ระบบ ตามตรวจ'), h('p', {class:'small muted'}, 'แบบตรวจ GMP ออนไลน์ และทะเบียนผลการตรวจสถานที่ผลิตอาหาร จ.ขอนแก่น')),
     S.joinCode ? h('div', {class:'note stack', style:'gap:8px'}, h('b', null, 'คุณได้รับเชิญร่วมตรวจ (รหัส ' + S.joinCode + ')'),
       h('span', {class:'small'}, 'เข้าสู่ระบบด้วยชื่อผู้ใช้ของคุณ ระบบจะพาเข้าร่วมการตรวจให้ทันที'),
-      h('span', {class:'small'}, 'ยังไม่มีบัญชี? ', h('button', {class:'linkbtn', type:'button', onclick: () => authGo('register')}, 'ลงทะเบียนเจ้าหน้าที่ใหม่'), ' (รอผู้ดูแลระบบอนุมัติก่อนใช้งาน)')) : null,
+      h('span', {class:'small'}, 'ยังไม่มีบัญชี? ', h('button', {class:'linkbtn', type:'button', onclick: () => authGo('register')}, 'ลงทะเบียนผู้ใช้งานใหม่'), ' (รอผู้ดูแลระบบอนุมัติก่อนใช้งาน)')) : null,
     field('ชื่อผู้ใช้', h('input', {type:'text', id:'lgU', value:S._lastUser || '', autocomplete:'username', autocapitalize:'none', spellcheck:'false', required:true})),
     field('รหัสผ่าน', pwInput('lgP', 'current-password')),
     err, h('button', {class:'btn primary', type:'submit'}, 'เข้าสู่ระบบ'),
     h('div', {class:'spread'}, h('button', {class:'linkbtn', type:'button', onclick: () => authGo('forgot')}, 'ลืมรหัสผ่าน?'),
-      h('button', {class:'linkbtn', type:'button', onclick: () => authGo('register')}, 'ลงทะเบียนเจ้าหน้าที่ใหม่'))));
+      h('button', {class:'linkbtn', type:'button', onclick: () => authGo('register')}, 'ลงทะเบียนผู้ใช้งานใหม่'))));
 }
 function chkReg() {
   const u = ($('#rgU') || {}).value || '', w = ($('#rgW') || {}).value || '';
@@ -1029,7 +1029,7 @@ function viewRegister() {
     } catch (x) { err.textContent = errText(x); btn.disabled = false; btn.textContent = 'ลงทะเบียน'; }
   };
   return h('div', {class:'login'}, h('form', {class:'panel stack', onsubmit:submit, autocomplete:'on', oninput:chkReg},
-    h('div', null, h('div', {class:'eyebrow'}, 'ระบบ ตามตรวจ'), h('h1', null, 'ลงทะเบียนเจ้าหน้าที่'),
+    h('div', null, h('div', {class:'eyebrow'}, 'ระบบ ตามตรวจ'), h('h1', null, 'ลงทะเบียนผู้ใช้งานใหม่'),
       h('p', {class:'small muted'}, 'สำหรับเจ้าหน้าที่ สสจ. สสอ. และโรงพยาบาลในจังหวัดขอนแก่น กรอกเท่าที่จำเป็น ผู้ดูแลระบบจะอนุมัติแล้วแจ้งทางอีเมล')),
     S.joinCode ? h('div', {class:'note small'}, 'หลังลงทะเบียน รอผู้ดูแลระบบอนุมัติ (มีอีเมลแจ้ง) แล้วเข้าสู่ระบบและสแกน QR อีกครั้ง (รหัส ' + S.joinCode + ')') : null,
     h('div', {class:'grid2'},
@@ -1373,7 +1373,7 @@ function viewGuest() {
   const mine = S.insps.filter(i => !/^(deleted|cancelled)$/.test(i.status));
   return h('div', {class:'stack'},
     h('div', null, h('div', {class:'eyebrow'}, 'ผู้ร่วมตรวจ · ' + (S.user.unitName || '')), h('h1', null, 'การตรวจของฉัน')),
-    h('p', {class:'small muted', style:'max-width:64ch'}, 'คุณเข้าร่วมโดยไม่มีบัญชี (แบบเดิม) ทำต่อในการตรวจนี้ได้จนเสร็จ ครั้งต่อไปการเข้าร่วมตรวจต้องมีบัญชี ออกจากระบบแล้วกด "ลงทะเบียนเจ้าหน้าที่ใหม่" ได้เลย'),
+    h('p', {class:'small muted', style:'max-width:64ch'}, 'คุณเข้าร่วมโดยไม่มีบัญชี (แบบเดิม) ทำต่อในการตรวจนี้ได้จนเสร็จ ครั้งต่อไปการเข้าร่วมตรวจต้องมีบัญชี ออกจากระบบแล้วกด "ลงทะเบียนผู้ใช้งานใหม่" ได้เลย'),
     mine.length ? h('div', {class:'list'}, mine.map(i => inspMain(i))) : h('div', {class:'list'}, h('div', {class:'empty'}, 'ยังไม่มีการตรวจ')),
     h('form', {class:'joinbar', onsubmit: e => { e.preventDefault(); const v = $('#joinIn').value; if (v.trim()) doJoin(v); }},
       h('label', {for:'joinIn'}, 'ได้รับรหัสเชิญอีกการตรวจ?'),
