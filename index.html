@@ -439,6 +439,12 @@ body.act-herb{--accent:#7A5B12;--accent-soft:#F3EAD3}
 .chip.t-HN{background:var(--accent-soft);color:var(--accent)}
 .chip.t-HS{background:var(--good-soft);color:var(--good)}
 .fin-row{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:start}
+
+.rec.need textarea{border-color:var(--bad);box-shadow:0 0 0 2px color-mix(in srgb,var(--bad) 18%,transparent)}
+.notes-tbl{width:100%;border-collapse:collapse;font-size:.92rem}
+.notes-tbl th,.notes-tbl td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
+.notes-tbl th{font-size:.8rem;color:var(--muted);font-weight:600}
+.tblwrap{overflow-x:auto}
 </style>
 
 </head>
@@ -1988,7 +1994,7 @@ async function cancelFollowup() {
 function startFollowupDialog() {
   const i = S.cur.insp, res = S.cur.res || {}, c = calc(i, res), fu = res.fu || {};
   const prevFixed = v => !!(v.f1 || v.f2);
-  const items = c.deficits.filter(d => !prevFixed(d.v)).map(d => ({form:d.form, k:d.it.k, t:d.it.t, m:!!d.it.m, s0:d.v.s, c0:d.v.c || '', r0:d.v.r || '', due0:d.v.due || '', ph0:d.v.ph || []}));
+  const items = c.deficits.filter(d => !prevFixed(d.v)).map(d => ({form:d.form, k:d.it.k, t:d.it.t, m:!!d.it.m, s0:d.v.s, c0:'', r0:noteOf(d.v), due0:d.v.due || '', ph0:d.v.ph || []}));
   const o9 = String((res.sum && res.sum.other9) || '').trim();
   if (o9 && !(fu.f1 && fu.f1.fixed9)) items.push({form:'sum', k:'9', t:o9, m:true, s0:'serious', c0:'', r0:'', due0:'', ph0:[]});
   const base = {};
@@ -2141,18 +2147,78 @@ function tabInfo() {
     h('div', {class:'row'}, h('button', {class:'btn primary', onclick: () => { S.tab = 'ts2'; drawTabs(); redrawTab(); window.scrollTo(0, 0); }}, 'ไปที่ ตส.2 →')));
 }
 
+/* ---- สิ่งที่พบ/คำแนะนำ: ช่องเดียวต่อข้อ (เก็บใน .r · ข้อมูลเดิมที่แยก .c ไว้จะรวมเข้ามาให้) ---- */
+const noteOf = v => { const a = [v && v.c, v && v.r].map(x => String(x || '').trim()).filter(Boolean); return a.length === 2 && a[0] === a[1] ? a[0] : a.join('\n'); };
+function migrateNote(base, v) { if (locked() || !String(v.c || '').trim()) return; write('res', base + '.r', noteOf(v), 100); write('res', base + '.c', '', 100); }
+function noteBox(form, it, base, withDue, onInput) {
+  const ta = bound('textarea', 'res', base + '.r', {id:'r_' + form + kk(it.k), rows:3, placeholder:'สิ่งที่พบขณะตรวจ และคำแนะนำให้ผู้ประกอบการ'});
+  ta.addEventListener('input', () => onInput && onInput());
+  const lab = h('span', null, 'สิ่งที่พบ/คำแนะนำ');
+  const warn = h('p', {class:'small', hidden:true, style:'color:var(--bad);margin:0;font-weight:600'}, 'ข้อนี้ได้คะแนนไม่เต็ม ต้องกรอกสิ่งที่พบ/คำแนะนำ');
+  const dueBox = withDue ? h('div', {class:'stack', style:'gap:4px'},
+    h('label', {class:'f', style:'max-width:260px'}, h('span', null, 'กำหนดแก้ไขเร่งด่วนเฉพาะข้อนี้ (ถ้ามี)'), bound('date', 'res', base + '.due', {id:'d_' + form + kk(it.k)})),
+    h('p', {class:'small muted', style:'margin:0'}, 'ข้ออื่นใช้วันส่งหลักฐานรวมในแท็บ "สรุปผล"')) : null;
+  return {wrap:h('div', {class:'rec', hidden:true}, h('label', {class:'f'}, lab, ta), warn, dueBox), ta, lab, warn, dueBox};
+}
+function noteBtn(card, sync) {
+  return h('button', {type:'button', class:'tool', onclick: () => { const p = card._parts; p.open = !p.open || p.nb.wrap.hidden; sync(); if (!p.nb.wrap.hidden) p.nb.ta.focus(); }}, 'สิ่งที่พบ/คำแนะนำ');
+}
+function syncNote(p, deficient) {
+  const nb = p.nb, txt = !!(nb.ta.value || '').trim();
+  nb.wrap.hidden = !(deficient || txt || p.open);
+  nb.lab.textContent = deficient ? 'สิ่งที่พบ/คำแนะนำ (ต้องกรอก)' : 'สิ่งที่พบ/คำแนะนำ (ข้อสังเกต ไม่หักคะแนน)';
+  nb.warn.hidden = !(deficient && !txt);
+  nb.wrap.classList.toggle('need', deficient && !txt);
+  if (nb.dueBox) nb.dueBox.hidden = !deficient;
+}
+// ข้อที่ต้องมีคำแนะนำแต่ยังว่าง (ได้ 1 หรือ 0 / ไม่ผ่าน)
+const noRecList = defs => defs.filter(d => d.it && d.form !== 'ph' && !noteOf(d.v)).map(d => ({f:d.form, k:d.it.k, label:(d.form === 'ts2' ? '' : formShort(d.form) + ' ') + d.it.k + ' ยังไม่มีคำแนะนำ'}));
+// ตารางสรุป: ข้อ · คะแนน · สิ่งที่พบ/คำแนะนำ (ทั้งข้อที่หักคะแนน และข้อสังเกตที่ไม่หักคะแนน)
+function noteRowsView(rows, opts) {
+  opts = opts || {};
+  const def = rows.filter(r => r.def).length, obs = rows.length - def;
+  return h('div', {class:'panel stack'}, h('h3', null, opts.title || 'สรุปรายข้อ: คะแนนและคำแนะนำ'),
+    h('p', {class:'small muted', style:'margin:0'}, 'ต้องแก้ไข ' + def + ' ข้อ · ข้อสังเกต/ข้อเสนอแนะ (ไม่หักคะแนน) ' + obs + ' ข้อ · ใช้อ่านทวนให้ผู้ประกอบการฟังก่อนลงนาม'),
+    rows.length ? h('div', {class:'tblwrap'}, h('table', {class:'tbl notes-tbl'}, h('thead', null, h('tr', null, h('th', null, 'ข้อ'), h('th', null, 'คะแนน/ผล'), h('th', null, 'สิ่งที่พบ/คำแนะนำ'))),
+      h('tbody', null, rows.map(r => h('tr', null,
+        h('td', {style:'white-space:nowrap;vertical-align:top'}, h('button', {type:'button', class:'linkbtn', onclick: () => jumpTo(r.f, r.k), title:'ไปที่ข้อนี้'}, r.no), r.m ? h('div', {class:'small', style:'color:var(--bad)'}, r.m) : null),
+        h('td', {style:'white-space:nowrap;vertical-align:top'}, h('span', {class:'chip ' + (r.def ? 'fail' : 'pass')}, r.score), h('div', {class:'small muted'}, r.def ? 'ต้องแก้ไข' : 'ข้อสังเกต')),
+        h('td', {style:'vertical-align:top'}, r.sh ? h('div', {class:'small muted'}, r.sh) : null,
+          r.note ? h('div', {style:'white-space:pre-line'}, r.note) : h('div', {class:'small', style:'color:var(--bad);font-weight:600'}, 'ยังไม่ได้กรอกคำแนะนำ'),
+          r.due ? h('div', {class:'small'}, h('b', null, 'แก้ไขภายใน ' + thDate(r.due))) : null)))))) :
+      h('p', {class:'small muted'}, opts.empty || 'ไม่มีข้อที่หักคะแนนหรือมีข้อสังเกต'));
+}
+// PDF: ตารางแนบท้าย
+function noteRowsPdf(rows) {
+  return h('table', null, h('thead', null, h('tr', null, h('th', null, 'ลำดับ'), h('th', null, 'ข้อ'), h('th', null, 'คะแนน/ผล'), h('th', {style:'width:52%'}, 'สิ่งที่พบ/คำแนะนำของเจ้าหน้าที่'), h('th', {style:'width:13%'}, 'ตรวจสอบการแก้ไข'))),
+    h('tbody', null, rows.map((r, n) => h('tr', {class:'avoid'}, h('td', {class:'c'}, n + 1), h('td', {class:'c'}, r.no, r.m ? h('div', {class:'small'}, r.m) : null),
+      h('td', {class:'c'}, r.score, h('div', {class:'small'}, r.def ? 'ต้องแก้ไข' : 'ข้อสังเกต')),
+      h('td', null, r.note || r.t, r.due ? h('div', null, h('b', null, 'แก้ไขเร่งด่วนภายใน ' + thDate(r.due, true))) : null),
+      h('td', {class:'c', style:'white-space:nowrap'}, r.def ? [cb(false), ' แก้ไขแล้ว'] : '–')))));
+}
+const shortT = (t, n) => { t = String(t || ''); n = n || 90; return t.length > n ? t.slice(0, n - 2) + '…' : t; };
+const TS2_SL = {2:'ดี (2)', 1:'พอใช้ (1)', 0:'ปรับปรุง (0)', na:'ไม่เกี่ยวข้อง'}, PF_SL = {p:'ผ่าน', f:'ไม่ผ่าน', na:'ไม่เกี่ยวข้อง'};
+function foodNoteRows(insp, res) {
+  const out = [];
+  for (const f of activeForms(insp)) for (const it of ITEMS[f]) {
+    if (itemOff(insp, f, it.k)) continue;
+    const v = itemVal(res, f, it.k); if (v.s == null) continue;
+    const def = f === 'ts2' ? (v.s === 0 || v.s === 1) : v.s === 'f', note = noteOf(v);
+    if (!def && !note) continue;
+    out.push({f, k:it.k, no:(f === 'ts2' ? 'ตส.2 ' : formShort(f) + ' ') + it.k, m:it.m && f === 'ts2' ? (v.s === 0 ? 'M · บกพร่องรุนแรง' : 'M') : '', t:it.t, sh:shortT(it.t),
+      score:(f === 'ts2' ? TS2_SL : PF_SL)[v.s] || '', def, note, due:def ? v.due : ''});
+  }
+  return out;
+}
+
 /* ---- item card ---- */
 function itemCard(form, it) {
   const pf = form !== 'ts2';
   const base = form + '.' + kk(it.k);
   const opts = pf ? [['p','ผ่าน'],['f','ไม่ผ่าน'],['na','ไม่เกี่ยวข้อง']] : [[2,'ดี','2 คะแนน'],[1,'พอใช้','1 คะแนน'],[0,'ปรับปรุง','0 คะแนน'],['na','ไม่เกี่ยวข้อง','N/A']];
   const card = h('div', {class:'item', 'data-f':form, 'data-k':it.k, id:'it_' + form + '_' + kk(it.k)});
-  const commentWrap = h('div', {class:'cw', hidden:true}, field('สิ่งที่พบ', bound('textarea', 'res', base + '.c', {id:'c_' + form + kk(it.k), rows:2, placeholder:'สิ่งที่พบขณะตรวจในข้อนี้'})));
-  const recWrap = h('div', {class:'rec', hidden:true},
-    h('label', {class:'f'}, h('span', null, 'คำแนะนำการแก้ไข (แนบท้ายผลการตรวจ)'),
-      bound('textarea', 'res', base + '.r', {id:'r_' + form + kk(it.k), rows:3, placeholder:'พิมพ์คำแนะนำให้ผู้ประกอบการ'})),
-    h('label', {class:'f', style:'max-width:260px'}, h('span', null, 'กำหนดแก้ไขเร่งด่วนเฉพาะข้อนี้ (ถ้ามี)'), bound('date', 'res', base + '.due', {id:'d_' + form + kk(it.k)})),
-    h('p', {class:'small muted'}, 'ข้ออื่นใช้วันส่งหลักฐานรวมในแท็บ "สรุปผล"'));
+  migrateNote(base, itemVal(S.cur.res, form, it.k));
+  const nb = noteBox(form, it, base, true, () => syncItem(card));
   const photos = h('div', {class:'photos'});
   const cntB = h('b', null, '');
   const photoBtn = true ? h('label', {class:'tool photo-add'}, 'แนบรูป ', cntB,
@@ -2165,9 +2231,9 @@ function itemCard(form, it) {
         h('p', {class:'small muted offnote', hidden:true}, 'ไม่เกี่ยวข้องกับประเภทการผลิตที่เลือก (ข้ามอัตโนมัติ)'))),
     h('div', {class:'seg' + (pf ? ' pf' : ''), role:'group', 'aria-label':'ผลการประเมินข้อ ' + it.k},
       opts.map(([v, l, s]) => h('button', {type:'button', 'data-v':String(v), 'aria-pressed':'false', onclick: () => setScore(form, it, v, card)}, l, s ? h('small', null, s) : null))),
-    h('div', {class:'tools'}, h('button', {type:'button', class:'tool', onclick: () => { commentWrap.hidden = !commentWrap.hidden; if (!commentWrap.hidden) commentWrap.querySelector('textarea').focus(); }}, 'สิ่งที่พบ'), photoBtn),
-    commentWrap, recWrap, photos);
-  card._parts = {commentWrap, recWrap, photos, cntB};
+    h('div', {class:'tools'}, noteBtn(card, () => syncItem(card)), photoBtn),
+    nb.wrap, photos);
+  card._parts = {nb, photos, cntB};
   syncItem(card);
   return card;
 }
@@ -2190,8 +2256,7 @@ function syncItem(card) {
   for (const b of card.querySelectorAll('.seg button')) { b.setAttribute('aria-pressed', String(!off && String(v.s) === b.dataset.v)); b.disabled = off; }
   const p = card._parts; if (!p) return;
   const deficient = !off && (form === 'ts2' ? (v.s === 0 || v.s === 1) : v.s === 'f');
-  p.recWrap.hidden = !deficient;
-  if ((v.c || '').trim() || deficient) p.commentWrap.hidden = false;
+  syncNote(p, deficient);
   const ph = v.ph || [];
   p.cntB.textContent = ph.length ? '(' + ph.length + ')' : '';
   const key = ph.join(',');
@@ -2269,7 +2334,7 @@ function drawMissBars() {
 /* ---- tab: ts2 ---- */
 function tabTs2() {
   const wrap = h('div', {class:'stack'});
-  wrap.append(h('div', {class:'note small'}, 'ดี = 2 คะแนน · พอใช้ = 1 · ปรับปรุง = 0 · ข้อที่มีป้าย ', h('span', {class:'mtag', style:'margin:0'}, 'M'), ' หากได้ 0 คะแนน ถือเป็นข้อบกพร่องรุนแรง · ผ่านเกณฑ์เมื่อทุกหมวดได้ไม่น้อยกว่าร้อยละ 60 และไม่พบข้อบกพร่องรุนแรง · เมื่อเลือก "พอใช้" หรือ "ปรับปรุง" จะมีช่องให้กรอกคำแนะนำสำหรับการแก้ไข'));
+  wrap.append(h('div', {class:'note small'}, 'ดี = 2 คะแนน · พอใช้ = 1 · ปรับปรุง = 0 · ข้อที่มีป้าย ', h('span', {class:'mtag', style:'margin:0'}, 'M'), ' หากได้ 0 คะแนน ถือเป็นข้อบกพร่องรุนแรง · ผ่านเกณฑ์เมื่อทุกหมวดได้ไม่น้อยกว่าร้อยละ 60 และไม่พบข้อบกพร่องรุนแรง · เมื่อเลือก "พอใช้" หรือ "ปรับปรุง" ต้องกรอกช่อง "สิ่งที่พบ/คำแนะนำ" · ข้อที่ได้ "ดี" แต่มีข้อสังเกต กดปุ่ม "สิ่งที่พบ/คำแนะนำ" เพื่อกรอกได้ (ไม่หักคะแนน)'));
   wrap.append(h('nav', {class:'catjump', id:'catJump', 'aria-label':'ไปที่หมวด'}, TS2.map(c => h('button', {type:'button', 'data-jump':c.n, title:'หมวดที่ ' + c.n + ' ' + c.title, onclick: () => jumpCat(c.n)},
     h('b', null, 'หมวด ' + c.n), h('span', {'data-jc':c.n}, '')))));
   for (const c of TS2) {
@@ -2373,9 +2438,7 @@ function calcSpec(c) {
     h('div', {class:'panel'}, h('h3', null, '4.3 ผลตามข้อกำหนดเฉพาะ'), h('p', {class:'small muted'}, 'ไม่มีการผลิตอาหารที่ต้องตรวจประเมินตามข้อกำหนดเฉพาะ'));
 }
 function calcDef(c) {
-  return h('div', {class:'panel'}, h('h3', null, 'ข้อบกพร่องที่ต้องแก้ไข (' + c.deficits.length + ' ข้อ)'),
-    c.deficits.length ? h('ul', {class:'deflist'}, c.deficits.map(d => h('li', null, h('span', {class:'ino'}, (d.form === 'ts2' ? '' : SPEC[d.form].short + ' ') + d.it.k),
-      h('span', {style:'flex:1;min-width:0'}, d.v.r || d.it.t, d.v.due ? h('span', {class:'muted'}, ' · ภายใน ' + thDate(d.v.due)) : null)))) : h('p', {class:'small muted'}, 'ไม่มีข้อที่ต้องแก้ไข'));
+  return noteRowsView(foodNoteRows(S.cur.insp, S.cur.res), {empty:'ไม่มีข้อที่ต้องแก้ไข และไม่มีข้อสังเกต'});
 }
 const CALC_PARTS = [['calcOverall', calcOverall], ['calcTs2', calcTs2], ['calcSpec', calcSpec], ['calcDef', calcDef]];
 function drawCalcParts(c) { for (const [id, fn] of CALC_PARTS) { const el = $('#' + id); if (el) el.replaceChildren(fn(c)); } }
@@ -2588,6 +2651,8 @@ function finishView() {
   const missing = missingItems(), needOp = !fu || i.fuMode !== 'evidence';
   const miss = [];
   if (missing.length) miss.push((fu ? 'บันทึกผลการแก้ไขให้ครบทุกข้อ' : 'ประเมินให้ครบทุกข้อ') + ' (เหลือ ' + missing.length + ' ข้อ)');
+  const noRec = fu ? [] : noRecList(calc(i, S.cur.res).deficits);
+  if (noRec.length) miss.push('สิ่งที่พบ/คำแนะนำ ของข้อที่ได้ 1 หรือ 0 คะแนน/ไม่ผ่าน (ยังขาด ' + noRec.length + ' ข้อ)');
   if (needOp && !(sig.op && sig.op.img)) miss.push('ลายมือชื่อผู้ประกอบการ/ผู้แทน');
   for (const x of contactMissing(i)) miss.push(x + ' (แท็บข้อมูลการตรวจ)');
   if (!insList().length) miss.push('ชื่อผู้ตรวจอย่างน้อย 1 คน (แท็บข้อมูลการตรวจ)');
@@ -2601,7 +2666,7 @@ function finishView() {
   if (i.status === 'done') return h('div', {class:'result-banner ' + fin}, h('b', null, 'ปิดการตรวจแล้ว · ' + RES_LABEL[fin]), h('p', null, fu ? 'บันทึกผลกลับไปที่การตรวจครั้งแรก ' + i.parent + ' แล้ว' : 'บันทึกเข้าทะเบียนเรียบร้อย'));
   return h('div', {class:'stack', style:'gap:8px'},
     miss.length ? h('div', {class:'note warn small'}, 'ก่อนปิดการตรวจ ต้องมี: ' + miss.join(' · ')) : h('div', {class:'note small'}, fu ? 'ครบถ้วนแล้ว กดปิดการตรวจติดตามเพื่อบันทึกผลกลับไปที่การตรวจครั้งแรก' : 'ครบถ้วนแล้ว กดปิดการตรวจเพื่อบันทึกผลเข้าทะเบียนและล็อกเอกสาร'),
-    missing.length ? missChips(missing) : null,
+    missing.length ? missChips(missing) : null, noRec.length ? missChips(noRec) : null,
     h('button', {class:'btn primary', style:'align-self:flex-start', disabled: miss.length > 0, onclick: finish}, fu ? 'ปิดการตรวจติดตามและบันทึกผล' : 'ปิดการตรวจและบันทึกเข้าทะเบียน'));
 }
 async function finish() {
@@ -2635,7 +2700,31 @@ function stmPrefill() {
   if (locked()) return; const i = S.cur.insp, st = S.cur.res.stm || {}, g = S.cur.res.sum || {};
   const set = (k, v) => { if (v && !String(st[k] || '').trim()) write('res', 'stm.' + k, v, 100); };
   set('name', g.guide); set('role', g.guidePos); set('time', i.time);
-  set('tel', i.phone); set('prov', 'ขอนแก่น'); set('nat', 'ไทย'); set('race', 'ไทย');
+  set('tel', i.phone); set('nat', 'ไทย'); set('race', 'ไทย');
+  if (!st.addrPre) {   // เติมที่อยู่จากสถานที่ผลิตครั้งเดียว (ถ้าผู้ใช้ลบทีหลัง จะไม่เติมซ้ำ)
+    const pl = (S.places || []).find(p => p.id === i.pid) || {}, a = parseAddr(i.addr || pl.addr || '');
+    if (!a.tambon && pl.tambon) a.tambon = pl.tambon.replace(/^ตำบล/, '');
+    if (!a.amphoe && pl.amphoe) a.amphoe = pl.amphoe.replace(/^อำเภอ/, '');
+    for (const k of ['no', 'soi', 'road', 'moo', 'tambon', 'amphoe', 'prov', 'zip']) set(k, a[k]);
+    write('res', 'stm.addrPre', 1, 100);
+  }
+  set('prov', 'ขอนแก่น');
+}
+function parseAddr(s) {
+  s = String(s || '').replace(/\s+/g, ' ').trim(); const out = {}; if (!s) return out;
+  const KEY = [['ตรอก/ซอย','soi'],['ตำบล/แขวง','tambon'],['อำเภอ/เขต','amphoe'],['รหัสไปรษณีย์','zip'],['หมู่ที่','moo'],['เลขที่','no'],['จังหวัด','prov'],
+    ['ตำบล','tambon'],['แขวง','tambon'],['อำเภอ','amphoe'],['ซอย','soi'],['ตรอก','soi'],['ถนน','road'],['หมู่','moo'],['ต.','tambon'],['อ.','amphoe'],['จ.','prov'],['ถ.','road'],['ซ.','soi'],['ม.','moo']];
+  const esc = x => x.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+  const re = new RegExp('(^|[\\s,])(' + KEY.map(k => esc(k[0])).join('|') + ')\\s*', 'g');
+  const hits = []; let m;
+  while ((m = re.exec(s))) hits.push({k: KEY.find(x => x[0] === m[2])[1], at: m.index, end: re.lastIndex});
+  const head = s.slice(0, hits.length ? hits[0].at : s.length).trim(), hm = head.match(/^[0-9๐-๙][0-9๐-๙\/\-]*/);
+  if (hm) out.no = hm[0];
+  hits.forEach((x, n) => { const v = s.slice(x.end, n + 1 < hits.length ? hits[n + 1].at : s.length).replace(/[,\s]+$/, '').trim(); if (v && !out[x.k]) out[x.k] = v; });
+  if (out.zip) out.zip = (out.zip.match(/[0-9]{5}/) || [out.zip])[0];
+  else { const z = s.match(/(?:^|\s)([0-9]{5})\s*$/); if (z) { out.zip = z[1]; if (out.prov) out.prov = out.prov.replace(/\s*[0-9]{5}$/, ''); } }
+  if (out.moo) out.moo = out.moo.replace(/^ที่\s*/, '');
+  return out;
 }
 function tabStm() {
   stmPrefill();
@@ -2938,7 +3027,7 @@ function buildReport() {
   const fuDates = h('p', null, 'วันที่ตรวจประเมิน ', fill(thDate(i.date, true)), '  วันที่ตรวจติดตาม ครั้งที่ 1 ', fill(fu.f1 && fu.f1.date ? thDate(fu.f1.date) : '', 70), '  ครั้งที่ 2 ', fill(fu.f2 && fu.f2.date ? thDate(fu.f2.date) : '', 70));
   const mark = (on) => on ? '✓' : '';
   const fuMark = (v, n) => v['f' + n] ? 'แก้ไขแล้ว' : '';
-  const note = v => [v.c, v.ph && v.ph.length ? '(ภาพ ' + v.ph.length + ')' : ''].filter(Boolean).join(' ');
+  const note = v => [noteOf(v), v.ph && v.ph.length ? '(ภาพ ' + v.ph.length + ')' : ''].filter(Boolean).join(' ');
   const ts2 = h('div', {class:'rpt'}, rptHdr(i, 'ตส.2 (63)'),
     h('h1', null, 'บันทึกการตรวจประเมินสถานที่ผลิตอาหาร ตามข้อกำหนดพื้นฐาน'),
     h('p', null, 'ชื่อสถานที่ผลิต/ผู้ได้รับอนุญาต ', fill(i.pname), '  เลขที่ใบอนุญาต/เลขสถานที่ผลิต ', fill(i.lic)), fuDates,
@@ -2972,12 +3061,8 @@ function buildReport() {
   const att = h('div', {class:'rpt'}, rptHdr(i, 'เอกสารแนบท้าย'),
     h('h1', null, 'คำแนะนำในการปรับปรุงแก้ไขสถานที่ผลิตอาหาร'),
     h('p', {class:'center'}, i.pname || '', i.lic ? ' · เลขที่ ' + i.lic : '', ' · ตรวจเมื่อ ' + thDate(i.date, true)),
-    c.deficits.length ? h('table', null, h('thead', null, h('tr', null, h('th', null, 'ลำดับ'), h('th', null, 'ข้อ'), h('th', {style:'width:33%'}, 'สิ่งที่พบ'), h('th', {style:'width:37%'}, 'คำแนะนำของเจ้าหน้าที่'), h('th', {style:'width:13%'}, 'ตรวจสอบการแก้ไข'))),
-      h('tbody', null, c.deficits.map((d, n) => h('tr', {class:'avoid'}, h('td', {class:'c'}, n + 1), h('td', {class:'c'}, (d.form === 'ts2' ? 'ตส.2 ' : SPEC[d.form].short + ' ') + d.it.k + (d.it.m ? ' (M)' : ''),
-          d.form === 'ts2' ? h('div', {class:'small'}, d.v.s === 0 ? 'ปรับปรุง' : 'พอใช้') : null),
-        h('td', null, d.v.c || d.it.t), h('td', null, d.v.r || '', d.v.due ? h('div', null, h('b', null, 'แก้ไขเร่งด่วนภายใน ' + thDate(d.v.due, true))) : null),
-        h('td', {class:'c', style:'white-space:nowrap'}, cb(false), ' แก้ไขแล้ว'))))) :
-      h('p', null, 'ไม่พบข้อบกพร่องที่ต้องปรับปรุงแก้ไข ขอให้รักษามาตรฐานการผลิตตามหลักเกณฑ์วิธีการที่ดีในการผลิตอาหารอย่างต่อเนื่อง'),
+    c.deficits.length ? null : h('p', null, 'ไม่พบข้อบกพร่องที่ต้องปรับปรุงแก้ไข ขอให้รักษามาตรฐานการผลิตตามหลักเกณฑ์วิธีการที่ดีในการผลิตอาหารอย่างต่อเนื่อง'),
+    (rows => rows.length ? noteRowsPdf(rows) : null)(foodNoteRows(i, res)),
     sum.fuDate ? h('p', null, 'ขอให้ส่งหลักฐานการแก้ไข เช่น รูปถ่าย เอกสาร แบบฟอร์ม รายงาน ภายในวันที่ ', fill(thDate(sum.fuDate, true))) : null,
     contactBox(i));
   parts.push(att);
@@ -2987,8 +3072,7 @@ function buildReport() {
   const short = t => { t = String(t || ''); return t.length > 110 ? t.slice(0, 108) + '…' : t; };
   for (const f of activeForms(i)) for (const it of ITEMS[f]) { const v = itemVal(res, f, it.k); for (const id of (v.ph || [])) pics.push({id,
     cap:[h('b', null, (f === 'ts2' ? 'ตส.2' : SPEC[f].short) + ' ข้อ ' + it.k + (sLab(f, v) ? ' (' + sLab(f, v) + ')' : '')),
-      h('div', null, v.c ? 'สิ่งที่พบ: ' + v.c : short(it.t)),
-      v.r ? h('div', null, 'คำแนะนำ: ' + v.r) : null]}); }
+      h('div', null, noteOf(v) ? 'สิ่งที่พบ/คำแนะนำ: ' + noteOf(v) : short(it.t))]}); }
   for (const id of (sum.ph || [])) pics.push({id, cap:[h('b', null, 'ภาพรวมสถานที่'), sum.layout ? h('div', null, short(sum.layout)) : null]});
   for (let n = 0; n < pics.length; n += 6) parts.push(h('div', {class:'rpt'}, rptHdr(i, 'ภาพประกอบการตรวจ'), n === 0 ? h('h1', null, 'ภาพประกอบการตรวจประเมิน') : null,
     h('div', {class:'photos'}, pics.slice(n, n + 6).map(p => h('figure', null, h('img', {src:(S.fileCache[p.id] || {}).data || '', alt:''}), h('figcaption', null, p.cap))))));
@@ -3392,10 +3476,10 @@ function dSummaryFields() {
   const i = S.cur.insp, res = S.cur.res, c = dcalc(i, res), d = res.dsum || {};
   const o = {result:c.result === 'incomplete' ? null : c.result, final:c.result === 'incomplete' ? null : c.result, defCount:c.deficits.length, cdCount:c.cd.length,
     cdText:c.cd.map(x => x.label).join(' / '), fuDue:d.due || '', fy:fyOf(i.date), inspectors:insList().map(x => x.name).join(', '),
-    summary:[c.deficits.map(x => (x.form === 'ph' ? '' : 'ข้อ ' + x.it.k + ' ') + (x.v.c || x.v.r || '')).filter(x => x.trim()).join('; '), d.note || ''].filter(Boolean).join(' · ').slice(0, 1500)};
+    summary:[c.deficits.map(x => (x.form === 'ph' ? '' : 'ข้อ ' + x.it.k + ' ') + (noteOf(x.v) || '')).filter(x => x.trim()).join('; '), d.note || ''].filter(Boolean).join(' · ').slice(0, 1500)};
   if (c.form === 'gpp') for (const x of c.cats) o['pct' + x.n] = x.full ? Math.round(x.pct * 100) / 100 : null;
   else for (const n of [1, 2, 3, 4, 5]) o['pct' + n] = null;
-  o.cdItems = c.form !== 'gpp' ? [] : [...c.cats.flatMap(x => x.cd.map(it => { const v = itemVal(res, 'gpp', it.k); return {cat:x.n, catName:x.short, k:it.k, sh:it.sh || it.t.slice(0, 80), c:String(v.c || '').slice(0, 300), r:String(v.r || '').slice(0, 300)}; })),
+  o.cdItems = c.form !== 'gpp' ? [] : [...c.cats.flatMap(x => x.cd.map(it => { const v = itemVal(res, 'gpp', it.k); return {cat:x.n, catName:x.short, k:it.k, sh:it.sh || it.t.slice(0, 80), c:'', r:String(noteOf(v)).slice(0, 600)}; })),
     ...(c.cat6 && c.cat6.cd ? [{cat:6, catName:GPP6.short, k:'6', sh:'ไม่พบเภสัชกรในเวลาปฏิบัติการที่ขออนุญาต', c:'ไม่พบ ' + c.ph.absent.map(x => phLine(x)).join(', '), r:''}] : [])];
   o.pct = null; o.score = null; o.full = null; o.serious = c.cd.length;
   return o;
@@ -3643,9 +3727,8 @@ function dItemCard(form, it) {
   const opts = form === 'gpp' ? [[2, 'ดี', '2 คะแนน'], ...(it.x1 ? [] : [[1, 'พอใช้', '1 คะแนน']]), [0, 'ปรับปรุง', '0 คะแนน'], ...(it.cut ? [['na', 'ตัดฐานคะแนน', it.cutNote || 'ไม่เกี่ยวข้อง']] : [])]
     : [['ok', 'เหมาะสม/ถูกต้อง'], ['fix', 'ควรปรับปรุง/ไม่ถูกต้อง'], ...(it.na ? [['na', it.na.length > 18 ? 'ไม่มี/ไม่เกี่ยวข้อง' : it.na]] : [])];
   const card = h('div', {class:'item', 'data-df':form, 'data-k':it.k, id:'it_' + form + '_' + kk(it.k)});
-  const commentWrap = h('div', {class:'cw', hidden:true}, field(form === 'pre' ? 'หมายเหตุ/สิ่งที่พบ' : 'สิ่งที่พบ', bound('textarea', 'res', base + '.c', {id:'c_' + form + kk(it.k), rows:2, placeholder:'สิ่งที่พบขณะตรวจในข้อนี้'})));
-  const recWrap = h('div', {class:'rec', hidden:true},
-    h('label', {class:'f'}, h('span', null, 'คำแนะนำการแก้ไข (แนบท้ายผลการประเมิน)'), bound('textarea', 'res', base + '.r', {id:'r_' + form + kk(it.k), rows:3, placeholder:'พิมพ์คำแนะนำให้ผู้รับอนุญาต/เภสัชกร'})));
+  migrateNote(base, itemVal(S.cur.res, form, it.k));
+  const nb = noteBox(form, it, base, false, () => dSyncItem(card));
   const photos = h('div', {class:'photos'}), cntB = h('b', null, '');
   card.append(
     h('div', {class:'item-top'}, h('span', {class:'ino'}, it.k),
@@ -3658,10 +3741,10 @@ function dItemCard(form, it) {
         it.opts ? h('div', {class:'dopts'}, it.opts.map((o, n) => h('label', {class:'check'}, bound('checkbox', 'res', base + '.o.o' + n, {id:'o_' + form + kk(it.k) + '_' + n}), h('span', null, o)))) : null)),
     h('div', {class:'seg', style:'grid-template-columns:repeat(' + opts.length + ',1fr)', role:'group', 'aria-label':'ผลการประเมินข้อ ' + it.k},
       opts.map(([v, l, s]) => h('button', {type:'button', 'data-v':String(v), 'aria-pressed':'false', onclick: () => dSetScore(form, it, v, card)}, l, s ? h('small', null, s) : null))),
-    h('div', {class:'tools'}, h('button', {type:'button', class:'tool', onclick: () => { commentWrap.hidden = !commentWrap.hidden; if (!commentWrap.hidden) commentWrap.querySelector('textarea').focus(); }}, form === 'pre' ? 'หมายเหตุ' : 'สิ่งที่พบ'),
+    h('div', {class:'tools'}, noteBtn(card, () => dSyncItem(card)),
       h('label', {class:'tool photo-add'}, 'แนบรูป ', cntB, h('input', {type:'file', accept:'image/*', multiple:true, onchange: e => addPhotos(form, it.k, [...e.target.files], card, photos)}))),
-    commentWrap, recWrap, photos);
-  card._parts = {commentWrap, recWrap, photos, cntB};
+    nb.wrap, photos);
+  card._parts = {nb, photos, cntB};
   dSyncItem(card);
   return card;
 }
@@ -3678,8 +3761,7 @@ function dSyncItem(card) {
   for (const b of card.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', String(String(v.s) === b.dataset.v));
   const p = card._parts; if (!p) return;
   const def = dDeficient(form, v.s);
-  p.recWrap.hidden = !def;
-  if ((v.c || '').trim() || def) p.commentWrap.hidden = false;
+  syncNote(p, def);
   const ph = v.ph || []; p.cntB.textContent = ph.length ? '(' + ph.length + ')' : '';
   const key = ph.join(',');
   if (p.photos.dataset.key !== key) { p.photos.dataset.key = key; p.photos.replaceChildren(...ph.map(id => photoThumb(id, () => removePhoto(form, k, id, card)))); }
@@ -3698,7 +3780,7 @@ function dTabForm() {
   const cats = form === 'gpp' ? GPP : PRE;
   wrap.append(h('div', {class:'note small'}, form === 'gpp'
     ? ['ดี = 2 · พอใช้ = 1 · ปรับปรุง = 0 คะแนน คูณค่าน้ำหนัก (×1/×2) · ข้อที่มีป้าย ', h('span', {class:'mtag cdtag', style:'margin:0'}, 'CD'), ' ได้ "ปรับปรุง (0)" = พบ Critical Defect ในหมวดนั้น · หมวด 6 ไม่พบเภสัชกรในเวลาปฏิบัติการที่ขออนุญาต = Critical Defect · ผ่านเมื่อไม่พบ Critical Defect และทุกหมวดได้ไม่น้อยกว่าร้อยละ ' + GPP_PASS]
-    : 'ประเมินแต่ละข้อว่า "เหมาะสม/ถูกต้อง" หรือ "ควรปรับปรุง/ไม่ถูกต้อง" ข้อที่ควรปรับปรุงจะมีช่องคำแนะนำ และรวมเป็นสิ่งที่ต้องปรับปรุงในแท็บ "สรุปผล"'));
+    : 'ประเมินแต่ละข้อว่า "เหมาะสม/ถูกต้อง" หรือ "ควรปรับปรุง/ไม่ถูกต้อง" ข้อที่ควรปรับปรุงต้องกรอก "สิ่งที่พบ/คำแนะนำ" ข้อที่เหมาะสมแต่มีข้อสังเกตกรอกได้ (ไม่หักคะแนน) และรวมเป็นสิ่งที่ต้องปรับปรุงในแท็บ "สรุปผล"'));
   const jumps = [...cats.map(c => c.n), ...(form === 'gpp' ? [6] : [])];
   wrap.append(h('nav', {class:'catjump', id:'catJump', 'aria-label':'ไปที่หมวด'}, jumps.map(n => h('button', {type:'button', 'data-jump':n, onclick: () => jumpCat(n)}, h('b', null, 'หมวด ' + n), h('span', {'data-jc':n}, '')))));
   if (form === 'pre') wrap.append(h('section', {class:'cat'}, h('div', {class:'cat-head'}, h('div', null, h('div', {class:'eyebrow'}, 'ขณะประเมิน'), h('h2', null, 'ผู้มีหน้าที่ปฏิบัติการ (เภสัชกร)'))), phStatusBox('pre')));
@@ -3756,9 +3838,7 @@ function dCalcView(c) {
     h('div', {class:'panel'}, h('h3', null, 'ผลรายหมวด'), h('ul', {class:'deflist'}, c.cats.map(x => h('li', null, h('span', {class:'ino'}, x.n), h('span', {style:'flex:1'}, x.title),
       x.fix ? h('span', {class:'chip fail'}, 'ควรปรับปรุง ' + x.fix) : x.done === x.total ? h('span', {class:'chip pass'}, 'เหมาะสม') : h('span', {class:'chip draft'}, 'ไม่ครบ')))),
       h('p', {class:'small', style:'margin-top:8px'}, 'เภสัชกรขณะประเมิน: ' + (c.ph.none ? 'ยังไม่มีรายชื่อ' : c.ph.list.map(p => p.name + ' – ' + ({found:'พบ', absent:'ไม่พบ'}[(S.cur.res.ph || {})[p.k]] || 'ยังไม่บันทึก')).join(', '))));
-  const def = h('div', {class:'panel'}, h('h3', null, (c.form === 'gpp' ? 'ส่วนที่บกพร่อง/ขอให้แก้ไข' : 'สิ่งที่ต้องปรับปรุง') + ' (' + c.deficits.length + ' ข้อ)'),
-    c.deficits.length ? h('ul', {class:'deflist'}, c.deficits.map(d => h('li', null, h('span', {class:'ino'}, d.form === 'ph' ? 'ภก.' : d.it.k), h('span', {style:'flex:1;min-width:0'}, d.v.r || d.v.c || d.it.t,
-      d.form === 'gpp' ? h('span', {class:'muted'}, ' · ' + (d.v.s === 0 ? 'ปรับปรุง' : 'พอใช้') + (d.it.cd && d.v.s === 0 ? ' (Critical Defect)' : '')) : null)))) : h('p', {class:'small muted'}, 'ไม่มีข้อที่ต้องแก้ไข'));
+  const def = noteRowsView(dNoteRows(c), {empty:'ไม่มีข้อที่ต้องแก้ไข และไม่มีข้อสังเกต'});
   return h('div', {class:'stack'}, banner, c.cd.length ? h('div', {class:'note bad small'}, h('b', null, 'Critical Defect'), h('ul', {style:'margin:4px 0 0;padding-left:18px'}, c.cd.map(x => h('li', null, x.label)))) : null, tbl, def);
 }
 function dTabSum() {
@@ -3824,6 +3904,8 @@ function dNeeds() {
   const i = S.cur.insp, sig = S.cur.sig || {}, has = k => !!(sig[k] && sig[k].img), miss = [];
   const missing = missingItems(), found = phList().some(p => (S.cur.res.ph || {})[p.k] === 'found');
   if (missing.length) miss.push('ประเมินให้ครบทุกข้อ (เหลือ ' + missing.length + ' ข้อ)');
+  const noRec = noRecList(dcalc(i, S.cur.res).deficits);
+  if (noRec.length) miss.push('สิ่งที่พบ/คำแนะนำ ของข้อที่' + (i.dform === 'pre' ? 'ควรปรับปรุง' : 'ได้ 1 หรือ 0 คะแนน') + ' (ยังขาด ' + noRec.length + ' ข้อ)');
   for (const x of contactMissing(i)) miss.push(x + ' (แท็บข้อมูลการตรวจ)');
   const unsigned = insList().filter(x => !has('i' + x.k));
   if (!insList().length) miss.push('ชื่อผู้ประเมินอย่างน้อย 1 คน (แท็บข้อมูลการตรวจ)'); else if (unsigned.length) miss.push('ลายมือชื่อผู้ประเมินทุกคน (ยังขาด: ' + unsigned.map(x => x.name).join(', ') + ')');
@@ -3831,14 +3913,14 @@ function dNeeds() {
   if (found && !has('ph')) miss.push('ลายมือชื่อผู้มีหน้าที่ปฏิบัติการ');
   if (i.dform === 'pre') { if (!has('ao')) miss.push('ลายมือชื่อผู้ขอรับอนุญาต (รับทราบเวลาปฏิบัติการ)'); if (found && !has('ap')) miss.push('ลายมือชื่อเภสัชกร (รับทราบเวลาปฏิบัติการ)'); }
   const amEd = i.edition || 1; if (amEd > 1 && !has('am' + amEd)) miss.push('ลายมือชื่อผู้แก้ไขบันทึก (ฉบับที่ ' + amEd + ')');
-  return {miss, missing};
+  return {miss, missing, noRec};
 }
 function dFinishView() {
-  const i = S.cur.insp, c = dcalc(i, S.cur.res), {miss, missing} = dNeeds();
+  const i = S.cur.insp, c = dcalc(i, S.cur.res), {miss, missing, noRec} = dNeeds();
   if (i.status === 'done') return h('div', {class:'result-banner ' + (i.result || c.result)}, h('b', null, 'ปิดการตรวจแล้ว · ' + dresLabel(i, i.result || c.result)), h('p', null, 'บันทึกเข้าทะเบียนเรียบร้อย'));
   return h('div', {class:'stack', style:'gap:8px'},
     miss.length ? h('div', {class:'note warn small'}, 'ก่อนปิดการตรวจ ต้องมี: ' + miss.join(' · ')) : h('div', {class:'note small'}, 'ครบถ้วนแล้ว กดปิดการตรวจเพื่อบันทึกผลเข้าทะเบียนและล็อกเอกสาร'),
-    missing.length ? missChips(missing) : null,
+    missing.length ? missChips(missing) : null, noRec.length ? missChips(noRec) : null,
     h('button', {class:'btn primary', style:'align-self:flex-start', disabled:miss.length > 0, onclick:finish}, 'ปิดการตรวจและบันทึกเข้าทะเบียน'));
 }
 async function dFinish() {
@@ -3899,7 +3981,20 @@ function dSigGrid(i, pre, withOp) {
   if (sig.w2Name || (sig.w2 && sig.w2.img)) boxes.push(sigBox(sig.w2, sig.w2Name, 'พยาน'));
   return h('div', {class:'sigs avoid'}, boxes);
 }
-function dDefTable(c) {
+const GPP_SL = {2:'ดี (2)', 1:'พอใช้ (1)', 0:'ปรับปรุง (0)', na:'ตัดฐานคะแนน'}, PRE_SL = {ok:'เหมาะสม', fix:'ควรปรับปรุง', na:'ไม่มี/ไม่เกี่ยวข้อง'};
+function dNoteRows(c) {
+  const out = [], f = c.form, res = S.cur.res || {};
+  if (c.deficits.some(d => d.form === 'ph')) { const d = c.deficits.find(x => x.form === 'ph');
+    out.push({f, k:f === 'gpp' ? '6' : 'ph', no:'เภสัชกร', t:'ไม่พบเภสัชกรขณะตรวจ', sh:'', score:'ไม่พบ', def:true, note:d.it.t, m:f === 'gpp' ? 'CD' : ''}); }
+  for (const it of ITEMS[f]) {
+    const v = itemVal(res, f, it.k); if (v.s == null) continue;
+    const def = dDeficient(f, v.s), note = noteOf(v); if (!def && !note) continue;
+    out.push({f, k:it.k, no:'ข้อ ' + it.k, m:it.cd && v.s === 0 ? 'CD' : '', t:it.t, sh:shortT(it.sh || it.t), score:(f === 'gpp' ? GPP_SL : PRE_SL)[v.s] || '', def, note});
+  }
+  return out;
+}
+function dDefTable(c) { const rows = dNoteRows(c); return rows.length ? noteRowsPdf(rows) : null; }
+function dDefTableOld(c) {
   return c.deficits.length ? h('table', null, h('thead', null, h('tr', null, h('th', null, 'ลำดับ'), h('th', null, 'ข้อ'), h('th', {style:'width:33%'}, 'สิ่งที่พบ'), h('th', {style:'width:37%'}, 'คำแนะนำของเจ้าหน้าที่'), h('th', {style:'width:13%'}, 'ตรวจสอบการแก้ไข'))),
     h('tbody', null, c.deficits.map((d, n) => h('tr', {class:'avoid'}, h('td', {class:'c'}, n + 1),
       h('td', {class:'c'}, d.form === 'ph' ? 'เภสัชกร' : d.it.k, d.form === 'gpp' ? h('div', {class:'small'}, (d.v.s === 0 ? 'ปรับปรุง' : 'พอใช้') + (d.it.cd && d.v.s === 0 ? ' (CD)' : '')) : null),
@@ -3909,7 +4004,7 @@ function dPhotoParts(i, f) {
   const res = S.cur.res || {}, pics = [], parts = [];
   const sLab = v => f === 'gpp' ? ({2:'ดี', 1:'พอใช้', 0:'ปรับปรุง', na:'ตัดฐานคะแนน'})[v.s] : ({ok:'เหมาะสม', fix:'ควรปรับปรุง', na:'ไม่มี'})[v.s];
   const short = t => { t = String(t || ''); return t.length > 110 ? t.slice(0, 108) + '…' : t; };
-  for (const it of ITEMS[f]) { const v = itemVal(res, f, it.k); for (const id of (v.ph || [])) pics.push({id, cap:[h('b', null, 'ข้อ ' + it.k + (sLab(v) ? ' (' + sLab(v) + ')' : '')), h('div', null, v.c ? 'สิ่งที่พบ: ' + v.c : short(it.t)), v.r ? h('div', null, 'คำแนะนำ: ' + v.r) : null]}); }
+  for (const it of ITEMS[f]) { const v = itemVal(res, f, it.k); for (const id of (v.ph || [])) pics.push({id, cap:[h('b', null, 'ข้อ ' + it.k + (sLab(v) ? ' (' + sLab(v) + ')' : '')), h('div', null, noteOf(v) ? 'สิ่งที่พบ/คำแนะนำ: ' + noteOf(v) : short(it.t))]}); }
   for (const id of ((res.dsum && res.dsum.ph) || [])) pics.push({id, cap:[h('b', null, 'ภาพรวมร้าน')]});
   for (let n = 0; n < pics.length; n += 6) parts.push(h('div', {class:'rpt'}, rptHdr(i, 'ภาพประกอบการตรวจ'), n === 0 ? h('h1', null, 'ภาพประกอบการตรวจประเมิน') : null,
     h('div', {class:'photos'}, pics.slice(n, n + 6).map(p => h('figure', null, h('img', {src:(S.fileCache[p.id] || {}).data || '', alt:''}), h('figcaption', null, p.cap))))));
@@ -3928,7 +4023,7 @@ function dBuildReport() {
           return h('tr', null, h('td', null, thNum(it.k) + ' ' + it.t, it.d ? h('div', {class:'small'}, it.d.join(' ')) : null, it.cd ? h('div', {class:'small', style:'font-weight:700'}, '(Critical Defect)' + (it.cdNote ? ' ' + it.cdNote.replace('Critical Defect ', '') : '')) : null),
             v.s === 'na' ? h('td', {class:'c small', colspan:3}, 'ตัดฐานคะแนน' + (it.cutNote ? ' (' + it.cutNote + ')' : '')) :
               [h('td', {class:'c'}, mark(v.s === 0)), h('td', {class:'c', style:it.x1 ? 'background:#D9D9D9' : null}, it.x1 ? '' : mark(v.s === 1)), h('td', {class:'c'}, mark(v.s === 2))],
-            h('td', {class:'c'}, thNum(it.w)), h('td', {class:'c'}, sc ? thNum(v.s * it.w) : ''), h('td', {class:'small'}, [v.c, v.ph && v.ph.length ? '(ภาพ ' + v.ph.length + ')' : ''].filter(Boolean).join(' '))); }),
+            h('td', {class:'c'}, thNum(it.w)), h('td', {class:'c'}, sc ? thNum(v.s * it.w) : ''), h('td', {class:'small'}, [noteOf(v), v.ph && v.ph.length ? '(ภาพ ' + v.ph.length + ')' : ''].filter(Boolean).join(' '))); }),
         h('tr', {class:'tot'}, h('td', {colspan:7}, 'ร้อยละของคะแนนเฉลี่ยในหมวดที่ ' + thNum(cat.n) + ' = (A/B) × 100 = ' + (cx.full ? fmtPct(cx.pct) : '–') + '  ·  A รวม (คะแนนที่ได้ × ค่าน้ำหนัก) = ' + cx.got + '  ·  B (กรณีได้คะแนนเต็มทุกข้อ) = ' + cx.full))]; })));
     parts.push(h('div', {class:'rpt'}, rptHdr(i, DFORM.gpp.code),
       h('h1', null, 'บันทึกการประเมินวิธีปฏิบัติทางเภสัชกรรมชุมชน', h('br'), 'ในสถานที่ขายยาแผนปัจจุบัน'),
@@ -3958,7 +4053,7 @@ function dBuildReport() {
           const v = itemVal(res, 'pre', it.k), o = v.o || {};
           return h('tr', null, h('td', null, thNum(it.k) + ' ' + it.t, it.opts ? h('div', {class:'small'}, it.opts.map((x, n) => h('span', {style:'display:block;padding-left:12px'}, cb(o['o' + n]), x))) : null),
             v.s === 'na' ? h('td', {class:'c small', colspan:2}, it.na || 'ไม่มี') : [h('td', {class:'c'}, mark(v.s === 'ok')), h('td', {class:'c'}, mark(v.s === 'fix'))],
-            h('td', {class:'small'}, [v.c, v.ph && v.ph.length ? '(ภาพ ' + v.ph.length + ')' : ''].filter(Boolean).join(' '))); })])));
+            h('td', {class:'small'}, [noteOf(v), v.ph && v.ph.length ? '(ภาพ ' + v.ph.length + ')' : ''].filter(Boolean).join(' '))); })])));
     parts.push(h('div', {class:'rpt'}, h('div', {class:'hdrline'}, h('span', null, 'ชื่อร้าน ' + (i.pname || '')), h('span', null, 'วันที่ตรวจประเมิน ' + thDate(i.date, true))),
       h('h1', null, DFORM.pre.title), h('p', {class:'center'}, DFORM.pre.sub), edNote(i),
       h('p', null, 'เลขที่ตรวจ ', fill(i.no || i.id, 120), '  วัตถุประสงค์ ', fill(DTYPE[i.type] || '', 200)),
