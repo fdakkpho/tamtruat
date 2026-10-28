@@ -445,6 +445,10 @@ body.act-herb{--accent:#7A5B12;--accent-soft:#F3EAD3}
 .notes-tbl th,.notes-tbl td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left}
 .notes-tbl th{font-size:.8rem;color:var(--muted);font-weight:600}
 .tblwrap{overflow-x:auto}
+
+.spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--ink);animation:spin 1s linear infinite;align-self:center}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
 </style>
 
 </head>
@@ -459,10 +463,11 @@ const AREAS = [['MKK','อำเภอเมือง (รพ.ขอนแก่
   ...['บ้านฝาง','พระยืน','หนองเรือ','ชุมแพ','สีชมพู','น้ำพอง','อุบลรัตน์','กระนวน','บ้านไผ่','เปือยน้อย','พล','แวงใหญ่','แวงน้อย','หนองสองห้อง','ภูเวียง',
     'มัญจาคีรี','ชนบท','เขาสวนกวาง','ภูผาม่าน','ซำสูง','โคกโพธิ์ไชย','หนองนาคำ','บ้านแฮด','โนนศิลา','เวียงเก่า'].map(a => ['A-' + a, 'อำเภอ' + a])];
 const AREA_HINT = {MKK:'ตำบลอื่น ๆ นอกจาก ต.ดอนหัน และ ต.ท่าพระ · สสจ. สสอ.เมือง รพ.ขอนแก่น', MSR:'ต.ดอนหัน และ ต.ท่าพระ · สสจ. สสอ.เมือง รพ.สิรินธร'};
-const UNITS = [["PHO", "สสจ.ขอนแก่น", "ALL", "สำนักงานสาธารณสุขจังหวัดขอนแก่น"], ["SSO-M", "สสอ.เมืองขอนแก่น", ["MKK", "MSR"], "สำนักงานสาธารณสุขอำเภอเมืองขอนแก่น"], ["MKK", "รพ.ขอนแก่น", ["MKK"], "โรงพยาบาลขอนแก่น"], ["MSR", "รพ.สิรินธร", ["MSR", "A-บ้านแฮด"], "โรงพยาบาลสิรินธร จังหวัดขอนแก่น"], ["A-บ้านฝาง", "สสอ.บ้านฝาง", ["A-บ้านฝาง"], "สำนักงานสาธารณสุขอำเภอบ้านฝาง"], ["H-บ้านฝาง", "รพ.บ้านฝาง", ["A-บ้านฝาง"], "โรงพยาบาลบ้านฝาง"], ["A-พระยืน", "สสอ.พระยืน", ["A-พระยืน"], "สำนักงานสาธารณสุขอำเภอพระยืน"], ["H-พระยืน", "รพ.พระยืน", ["A-พระยืน"], "โรงพยาบาลพระยืน"], ["A-หนองเรือ", "สสอ.หนองเรือ", ["A-หนองเรือ"], "สำนักงานสาธารณสุขอำเภอหนองเรือ"], ["H-หนองเรือ", "รพ.หนองเรือ", ["A-หนองเรือ"], "โรงพยาบาลหนองเรือ"], ["A-ชุมแพ", "สสอ.ชุมแพ", ["A-ชุมแพ"], "สำนักงานสาธารณสุขอำเภอชุมแพ"], ["H-ชุมแพ", "รพ.ชุมแพ", ["A-ชุมแพ"], "โรงพยาบาลชุมแพ"], ["A-สีชมพู", "สสอ.สีชมพู", ["A-สีชมพู"], "สำนักงานสาธารณสุขอำเภอสีชมพู"], ["H-สีชมพู", "รพ.สีชมพู", ["A-สีชมพู"], "โรงพยาบาลสีชมพู"], ["A-น้ำพอง", "สสอ.น้ำพอง", ["A-น้ำพอง"], "สำนักงานสาธารณสุขอำเภอน้ำพอง"], ["H-น้ำพอง", "รพ.น้ำพอง", ["A-น้ำพอง"], "โรงพยาบาลน้ำพอง"], ["A-อุบลรัตน์", "สสอ.อุบลรัตน์", ["A-อุบลรัตน์"], "สำนักงานสาธารณสุขอำเภออุบลรัตน์"], ["H-อุบลรัตน์", "รพ.อุบลรัตน์", ["A-อุบลรัตน์"], "โรงพยาบาลอุบลรัตน์"], ["A-กระนวน", "สสอ.กระนวน", ["A-กระนวน"], "สำนักงานสาธารณสุขอำเภอกระนวน"], ["H-กระนวน", "รพ.สมเด็จพระยุพราชกระนวน", ["A-กระนวน"], "โรงพยาบาลสมเด็จพระยุพราชกระนวน"], ["A-บ้านไผ่", "สสอ.บ้านไผ่", ["A-บ้านไผ่"], "สำนักงานสาธารณสุขอำเภอบ้านไผ่"], ["H-บ้านไผ่", "รพ.บ้านไผ่", ["A-บ้านไผ่"], "โรงพยาบาลบ้านไผ่"], ["A-เปือยน้อย", "สสอ.เปือยน้อย", ["A-เปือยน้อย"], "สำนักงานสาธารณสุขอำเภอเปือยน้อย"], ["H-เปือยน้อย", "รพ.เปือยน้อย", ["A-เปือยน้อย"], "โรงพยาบาลเปือยน้อย"], ["A-พล", "สสอ.พล", ["A-พล"], "สำนักงานสาธารณสุขอำเภอพล"], ["H-พล", "รพ.พล", ["A-พล"], "โรงพยาบาลพล"], ["A-แวงใหญ่", "สสอ.แวงใหญ่", ["A-แวงใหญ่"], "สำนักงานสาธารณสุขอำเภอแวงใหญ่"], ["H-แวงใหญ่", "รพ.แวงใหญ่", ["A-แวงใหญ่"], "โรงพยาบาลแวงใหญ่"], ["A-แวงน้อย", "สสอ.แวงน้อย", ["A-แวงน้อย"], "สำนักงานสาธารณสุขอำเภอแวงน้อย"], ["H-แวงน้อย", "รพ.แวงน้อย", ["A-แวงน้อย"], "โรงพยาบาลแวงน้อย"], ["A-หนองสองห้อง", "สสอ.หนองสองห้อง", ["A-หนองสองห้อง"], "สำนักงานสาธารณสุขอำเภอหนองสองห้อง"], ["H-หนองสองห้อง", "รพ.หนองสองห้อง", ["A-หนองสองห้อง"], "โรงพยาบาลหนองสองห้อง"], ["A-ภูเวียง", "สสอ.ภูเวียง", ["A-ภูเวียง"], "สำนักงานสาธารณสุขอำเภอภูเวียง"], ["H-ภูเวียง", "รพ.ภูเวียง", ["A-ภูเวียง"], "โรงพยาบาลภูเวียง"], ["A-มัญจาคีรี", "สสอ.มัญจาคีรี", ["A-มัญจาคีรี"], "สำนักงานสาธารณสุขอำเภอมัญจาคีรี"], ["H-มัญจาคีรี", "รพ.มัญจาคีรี", ["A-มัญจาคีรี"], "โรงพยาบาลมัญจาคีรี"], ["A-ชนบท", "สสอ.ชนบท", ["A-ชนบท"], "สำนักงานสาธารณสุขอำเภอชนบท"], ["H-ชนบท", "รพ.ชนบท", ["A-ชนบท"], "โรงพยาบาลชนบท"], ["A-เขาสวนกวาง", "สสอ.เขาสวนกวาง", ["A-เขาสวนกวาง"], "สำนักงานสาธารณสุขอำเภอเขาสวนกวาง"], ["H-เขาสวนกวาง", "รพ.เขาสวนกวาง", ["A-เขาสวนกวาง"], "โรงพยาบาลเขาสวนกวาง"], ["A-ภูผาม่าน", "สสอ.ภูผาม่าน", ["A-ภูผาม่าน"], "สำนักงานสาธารณสุขอำเภอภูผาม่าน"], ["H-ภูผาม่าน", "รพ.ภูผาม่าน", ["A-ภูผาม่าน"], "โรงพยาบาลภูผาม่าน"], ["A-ซำสูง", "สสอ.ซำสูง", ["A-ซำสูง"], "สำนักงานสาธารณสุขอำเภอซำสูง"], ["H-ซำสูง", "รพ.ซำสูง", ["A-ซำสูง"], "โรงพยาบาลซำสูง"], ["A-โคกโพธิ์ไชย", "สสอ.โคกโพธิ์ไชย", ["A-โคกโพธิ์ไชย"], "สำนักงานสาธารณสุขอำเภอโคกโพธิ์ไชย"], ["H-โคกโพธิ์ไชย", "รพ.โคกโพธิ์ไชย", ["A-โคกโพธิ์ไชย"], "โรงพยาบาลโคกโพธิ์ไชย"], ["A-หนองนาคำ", "สสอ.หนองนาคำ", ["A-หนองนาคำ"], "สำนักงานสาธารณสุขอำเภอหนองนาคำ"], ["H-หนองนาคำ", "รพ.หนองนาคำ", ["A-หนองนาคำ"], "โรงพยาบาลหนองนาคำ"], ["A-บ้านแฮด", "สสอ.บ้านแฮด", ["A-บ้านแฮด"], "สำนักงานสาธารณสุขอำเภอบ้านแฮด"], ["A-โนนศิลา", "สสอ.โนนศิลา", ["A-โนนศิลา"], "สำนักงานสาธารณสุขอำเภอโนนศิลา"], ["H-โนนศิลา", "รพ.โนนศิลา", ["A-โนนศิลา"], "โรงพยาบาลโนนศิลา"], ["A-เวียงเก่า", "สสอ.เวียงเก่า", ["A-เวียงเก่า"], "สำนักงานสาธารณสุขอำเภอเวียงเก่า"], ["H-เวียงเก่า", "รพ.เวียงเก่า", ["A-เวียงเก่า"], "โรงพยาบาลเวียงเก่า"]];
-const ORG_NAMES = UNITS.map(u => u[3]);
+const UNITS = [["PHO", "สสจ.ขอนแก่น", "ALL", "สำนักงานสาธารณสุขจังหวัดขอนแก่น"], ["SSO-M", "สสอ.เมืองขอนแก่น", ["MKK", "MSR"], "สำนักงานสาธารณสุขอำเภอเมืองขอนแก่น"], ["MKK", "รพ.ขอนแก่น", ["MKK"], "โรงพยาบาลขอนแก่น"], ["MSR", "รพ.สิรินธร", ["MSR", "A-บ้านแฮด"], "โรงพยาบาลสิรินธร จังหวัดขอนแก่น"], ["A-บ้านฝาง", "สสอ.บ้านฝาง", ["A-บ้านฝาง"], "สำนักงานสาธารณสุขอำเภอบ้านฝาง"], ["H-บ้านฝาง", "รพ.บ้านฝาง", ["A-บ้านฝาง"], "โรงพยาบาลบ้านฝาง"], ["A-พระยืน", "สสอ.พระยืน", ["A-พระยืน"], "สำนักงานสาธารณสุขอำเภอพระยืน"], ["H-พระยืน", "รพ.พระยืน", ["A-พระยืน"], "โรงพยาบาลพระยืน"], ["A-หนองเรือ", "สสอ.หนองเรือ", ["A-หนองเรือ"], "สำนักงานสาธารณสุขอำเภอหนองเรือ"], ["H-หนองเรือ", "รพ.หนองเรือ", ["A-หนองเรือ"], "โรงพยาบาลหนองเรือ"], ["A-ชุมแพ", "สสอ.ชุมแพ", ["A-ชุมแพ"], "สำนักงานสาธารณสุขอำเภอชุมแพ"], ["H-ชุมแพ", "รพ.ชุมแพ", ["A-ชุมแพ"], "โรงพยาบาลชุมแพ"], ["A-สีชมพู", "สสอ.สีชมพู", ["A-สีชมพู"], "สำนักงานสาธารณสุขอำเภอสีชมพู"], ["H-สีชมพู", "รพ.สีชมพู", ["A-สีชมพู"], "โรงพยาบาลสีชมพู"], ["A-น้ำพอง", "สสอ.น้ำพอง", ["A-น้ำพอง"], "สำนักงานสาธารณสุขอำเภอน้ำพอง"], ["H-น้ำพอง", "รพ.น้ำพอง", ["A-น้ำพอง"], "โรงพยาบาลน้ำพอง"], ["A-อุบลรัตน์", "สสอ.อุบลรัตน์", ["A-อุบลรัตน์"], "สำนักงานสาธารณสุขอำเภออุบลรัตน์"], ["H-อุบลรัตน์", "รพ.อุบลรัตน์", ["A-อุบลรัตน์"], "โรงพยาบาลอุบลรัตน์"], ["A-กระนวน", "สสอ.กระนวน", ["A-กระนวน"], "สำนักงานสาธารณสุขอำเภอกระนวน"], ["H-กระนวน", "รพ.สมเด็จพระยุพราชกระนวน", ["A-กระนวน"], "โรงพยาบาลสมเด็จพระยุพราชกระนวน"], ["A-บ้านไผ่", "สสอ.บ้านไผ่", ["A-บ้านไผ่"], "สำนักงานสาธารณสุขอำเภอบ้านไผ่"], ["H-บ้านไผ่", "รพ.บ้านไผ่", ["A-บ้านไผ่"], "โรงพยาบาลบ้านไผ่"], ["A-เปือยน้อย", "สสอ.เปือยน้อย", ["A-เปือยน้อย"], "สำนักงานสาธารณสุขอำเภอเปือยน้อย"], ["H-เปือยน้อย", "รพ.เปือยน้อย", ["A-เปือยน้อย"], "โรงพยาบาลเปือยน้อย"], ["A-พล", "สสอ.พล", ["A-พล"], "สำนักงานสาธารณสุขอำเภอพล"], ["H-พล", "รพ.พล", ["A-พล"], "โรงพยาบาลพล"], ["A-แวงใหญ่", "สสอ.แวงใหญ่", ["A-แวงใหญ่"], "สำนักงานสาธารณสุขอำเภอแวงใหญ่"], ["H-แวงใหญ่", "รพ.แวงใหญ่", ["A-แวงใหญ่"], "โรงพยาบาลแวงใหญ่"], ["A-แวงน้อย", "สสอ.แวงน้อย", ["A-แวงน้อย"], "สำนักงานสาธารณสุขอำเภอแวงน้อย"], ["H-แวงน้อย", "รพ.แวงน้อย", ["A-แวงน้อย"], "โรงพยาบาลแวงน้อย"], ["A-หนองสองห้อง", "สสอ.หนองสองห้อง", ["A-หนองสองห้อง"], "สำนักงานสาธารณสุขอำเภอหนองสองห้อง"], ["H-หนองสองห้อง", "รพ.หนองสองห้อง", ["A-หนองสองห้อง"], "โรงพยาบาลหนองสองห้อง"], ["A-ภูเวียง", "สสอ.ภูเวียง", ["A-ภูเวียง"], "สำนักงานสาธารณสุขอำเภอภูเวียง"], ["H-ภูเวียง", "รพ.ภูเวียง", ["A-ภูเวียง"], "โรงพยาบาลภูเวียง"], ["A-มัญจาคีรี", "สสอ.มัญจาคีรี", ["A-มัญจาคีรี"], "สำนักงานสาธารณสุขอำเภอมัญจาคีรี"], ["H-มัญจาคีรี", "รพ.มัญจาคีรี", ["A-มัญจาคีรี"], "โรงพยาบาลมัญจาคีรี"], ["A-ชนบท", "สสอ.ชนบท", ["A-ชนบท"], "สำนักงานสาธารณสุขอำเภอชนบท"], ["H-ชนบท", "รพ.ชนบท", ["A-ชนบท"], "โรงพยาบาลชนบท"], ["A-เขาสวนกวาง", "สสอ.เขาสวนกวาง", ["A-เขาสวนกวาง"], "สำนักงานสาธารณสุขอำเภอเขาสวนกวาง"], ["H-เขาสวนกวาง", "รพ.เขาสวนกวาง", ["A-เขาสวนกวาง"], "โรงพยาบาลเขาสวนกวาง"], ["A-ภูผาม่าน", "สสอ.ภูผาม่าน", ["A-ภูผาม่าน"], "สำนักงานสาธารณสุขอำเภอภูผาม่าน"], ["H-ภูผาม่าน", "รพ.ภูผาม่าน", ["A-ภูผาม่าน"], "โรงพยาบาลภูผาม่าน"], ["A-ซำสูง", "สสอ.ซำสูง", ["A-ซำสูง"], "สำนักงานสาธารณสุขอำเภอซำสูง"], ["H-ซำสูง", "รพ.ซำสูง", ["A-ซำสูง"], "โรงพยาบาลซำสูง"], ["A-โคกโพธิ์ไชย", "สสอ.โคกโพธิ์ไชย", ["A-โคกโพธิ์ไชย"], "สำนักงานสาธารณสุขอำเภอโคกโพธิ์ไชย"], ["H-โคกโพธิ์ไชย", "รพ.โคกโพธิ์ไชย", ["A-โคกโพธิ์ไชย"], "โรงพยาบาลโคกโพธิ์ไชย"], ["A-หนองนาคำ", "สสอ.หนองนาคำ", ["A-หนองนาคำ"], "สำนักงานสาธารณสุขอำเภอหนองนาคำ"], ["H-หนองนาคำ", "รพ.หนองนาคำ", ["A-หนองนาคำ"], "โรงพยาบาลหนองนาคำ"], ["A-บ้านแฮด", "สสอ.บ้านแฮด", ["A-บ้านแฮด"], "สำนักงานสาธารณสุขอำเภอบ้านแฮด"], ["A-โนนศิลา", "สสอ.โนนศิลา", ["A-โนนศิลา"], "สำนักงานสาธารณสุขอำเภอโนนศิลา"], ["H-โนนศิลา", "รพ.โนนศิลา", ["A-โนนศิลา"], "โรงพยาบาลโนนศิลา"], ["A-เวียงเก่า", "สสอ.เวียงเก่า", ["A-เวียงเก่า"], "สำนักงานสาธารณสุขอำเภอเวียงเก่า"], ["H-เวียงเก่า", "รพ.เวียงเก่า", ["A-เวียงเก่า"], "โรงพยาบาลเวียงเก่า"], ["PCU", "รพ.สต.", [], "โรงพยาบาลส่งเสริมสุขภาพตำบล"], ["MUN", "เทศบาล/อปท.", [], "เทศบาล/องค์กรปกครองส่วนท้องถิ่น"]];
+const OPEN_UNITS = ['PCU', 'MUN'];
+const ORG_NAMES = UNITS.filter(u => !OPEN_UNITS.includes(u[0])).map(u => u[3]);
 const unitName = k => (UNITS.find(u => u[0] === k) || [])[1] || '';
-const unitAreasLabel = k => { const u = UNITS.find(x => x[0] === k); if (!u) return ''; if (u[2] === 'ALL') return 'ทุกพื้นที่ทั้งจังหวัด';
+const unitAreasLabel = k => { const u = UNITS.find(x => x[0] === k); if (!u) return ''; if (OPEN_UNITS.includes(k)) return 'เฉพาะการตรวจที่ได้รับเชิญและยังไม่ปิด'; if (u[2] === 'ALL') return 'ทุกพื้นที่ทั้งจังหวัด';
   const a = u[2].slice(), out = [];
   if (a.includes('MKK') && a.includes('MSR')) out.push('อ.เมืองทั้งหมด');
   else if (a.includes('MKK')) out.push('อ.เมือง (ยกเว้น ต.ท่าพระ ต.ดอนหัน)');
@@ -516,7 +521,15 @@ const S = { act:'', dinsps:[], dplaces:[], canDrug:false, df:{fy:'', res:'', typ
   places:[], insps:[], view:'reg', tab:'info', cur:null, poll:0, sheetUrl:null, folderUrl:null, mailQuota:null, fileCache:{},
   f:{fy:'', type:'', res:'', q:''}, pq:'', placeId:null, area:'' };
 const isAdmin = () => !!(S.user && S.user.role === 'admin');
-const isGuest = () => !!(S.user && S.user.guest);
+// isGuest = โหมดจำกัด (หน้าจอ "การตรวจของฉัน" แทนทะเบียน): ผู้ชม, ผู้ร่วมตรวจแบบเดิมที่ไม่มีบัญชี, นักศึกษาฝึกงาน, รพ.สต./เทศบาล
+const isGuest = () => !!(S.user && (S.user.guest || S.user.lim));
+const isViewer = () => !!(S.user && S.user.viewer);
+const isNoAcct = () => !!(S.user && S.user.guest);
+const isStudent = () => !!(S.user && S.user.role === 'student');
+const isLim = () => !!(S.user && S.user.lim);
+const roleLabel = u => u.role === 'admin' ? 'ผู้ดูแลระบบ' : u.role === 'student' ? 'นักศึกษาฝึกงาน' : OPEN_UNITS.includes(u.unit || u.area) ? unitName(u.unit || u.area) : 'เจ้าหน้าที่';
+// แท็บที่นักศึกษาฝึกงานกรอกได้ (คะแนน สิ่งที่พบ รูป) · แท็บอื่นดูอย่างเดียว
+const STUDENT_TABS = ['ts2', 'ts3', 'ts4', 'ts5', 'sum', 'fu', 'gpp', 'pre', 'dsum', 'herb', 'hsum'];
 function setArea(a) { S.area = a; try { localStorage.setItem('gmp_area', a); } catch {} S.f.type = ''; go('reg'); }
 
 /* ============ helpers ============ */
@@ -798,7 +811,8 @@ function boot() {
   ro.observe($('#bar'));
   bindGlobal();
   try { S.token = localStorage.getItem('gmp_token'); S._lastUser = localStorage.getItem('gmp_user') || ''; } catch {}
-  try { const q = new URLSearchParams(location.search); if (!IN_GAS && q.get('reg') && q.get('u') && q.get('t')) S.regDecide = {act:q.get('reg'), u:q.get('u'), t:q.get('t')}; } catch {}
+  try { const q = new URLSearchParams(location.search); if (!IN_GAS && q.get('reg') && q.get('u') && q.get('t')) S.regDecide = {act:q.get('reg'), u:q.get('u'), t:q.get('t')};
+    if (q.get('v')) { S.viewCode = String(q.get('v')).toUpperCase(); if (S.token) { /* เปิดลิงก์ผู้ชมขณะล็อกอินอยู่: ถ้าเป็นผู้ชมคนเดิมให้ใช้ต่อ ไม่เช่นนั้นออกจากบัญชีผู้ชมเดิม */ } } } catch {}
   const onJ = j => { NAV.ready = true; if (!j) navSync(); if (j) { S.joinCode = String(j).toUpperCase(); if (S.user) doJoin(); else render(); } };
   try { if (IN_GAS && google.script.url) google.script.url.getLocation(loc => onJ(loc && loc.parameter && loc.parameter.j)); else onJ(new URLSearchParams(location.search).get('j')); } catch {}
   render();
@@ -815,23 +829,35 @@ async function loadAll() {
     if (!S.act) { let a = ''; try { a = localStorage.getItem('gmp_act') || ''; } catch {} if (!a && window.__autoAct) a = window.__autoAct; S.act = a === 'food' || (MODS[a] && MODS[a].can()) ? a : ''; if (actMod() && !actMod().views[S.view]) S.view = actMod().home; }
     S.sheetUrl = r.sheetUrl; S.appUrl = r.appUrl || ''; S.folderUrl = r.folderUrl; S.mailQuota = r.mailQuota; S.office = r.office || '';
     const al = allowedAreas();
-    if (r.user.guest) { S.area = 'ALL'; S.view = 'guest'; }
+    if (isGuest()) { S.area = 'ALL'; S.view = 'guest'; if (r.user.viewer) S._openAfterLoad = r.user.insp; }
     else if (al.length === 1) S.area = al[0];
     else { let a = ''; try { a = localStorage.getItem('gmp_area') || ''; } catch {} S.area = (a === 'ALL' || al.includes(a)) ? a : ''; }
     S.ready = true; render();
     if (S._openAfterLoad) { const id = S._openAfterLoad; S._openAfterLoad = null; openEditor(id); }
     else if (r.user.guest && !S.joinCode) { const mine = S.insps.filter(i => !/^(deleted|cancelled)$/.test(i.status)); if (mine.length === 1) openEditor(mine[0].no); }
+    else if (isLim() && !S.joinCode) { const mine = limList(); if (mine.length === 1) openEditor(mine[0].no); }
     if (S.joinCode) doJoin();
+    if (S.viewCode) openViewCode();
   } catch (e) { if (S.token) { S.loadErr = errText(e); render(); } }
+}
+// เปิดลิงก์ผู้ชมขณะล็อกอินอยู่: เจ้าหน้าที่ที่มีสิทธิ์ → เปิดการตรวจเลย · ผู้ชมของการตรวจอื่น → ออกแล้วขอดูใหม่
+async function openViewCode() {
+  const code = S.viewCode; let info;
+  try { info = await API('viewReq', {code, peek:true}); } catch (e) { S.viewCode = null; return toast(errText(e), 5000); }
+  try { history.replaceState(null, '', location.pathname); } catch {}
+  if (isViewer() && S.user.insp !== info.no) { try { await API('logout'); } catch {} try { localStorage.removeItem('gmp_token'); } catch {} S.token = null; S.user = null; S.cur = null; render(); return; }
+  S.viewCode = null; openEditor(info.no);
 }
 async function refreshList() {
   if (!S.user) return;
   try { const r = await API('list'); S.places = sortPlaces(r.places); S.insps = r.regs; for (const k in MODS) MODS[k].load(r); if (['reg','places','place'].includes(S.view) || Object.values(MODS).some(M => M.listViews.includes(S.view))) render(); } catch {}
 }
 function logoutLocal(expired) {
+  const wasViewer = isViewer();
   try { localStorage.removeItem('gmp_token'); } catch {}
+  if (wasViewer && expired) { S.viewEnded = true; }
   clearInterval(S.poll); S.token = null; S.user = null; S.cur = null; S.view = 'reg'; S.act = ''; Q.pending = []; NAV.key = ''; S.authView = 'login';
-  render(); if (expired) toast('หมดเวลาการเข้าใช้งาน กรุณาเข้าสู่ระบบใหม่', 4000);
+  render(); if (expired && !wasViewer) toast('หมดเวลาการเข้าใช้งาน กรุณาเข้าสู่ระบบใหม่', 4000);
 }
 async function logout() { try { await API('logout'); } catch {} logoutLocal(false); }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
@@ -844,7 +870,7 @@ function splitName(full) {
 async function doJoin(code, guest) {
   code = String(code || S.joinCode || '').trim().toUpperCase();
   if (!code) return;
-  if (!S.user || isGuest()) { S.joinCode = code; if (isGuest()) { toast('การเข้าร่วมตรวจต้องมีบัญชีผู้ใช้ กรุณาเข้าสู่ระบบหรือลงทะเบียน', 5000); await logout(); S.joinCode = code; } authGo('login'); return; }
+  if (!S.user || isNoAcct()) { S.joinCode = code; if (isNoAcct()) { toast('การเข้าร่วมตรวจต้องมีบัญชีผู้ใช้ กรุณาเข้าสู่ระบบหรือลงทะเบียน', 5000); await logout(); S.joinCode = code; } authGo('login'); return; }
   guest = false;
   let info; try { info = await API(guest ? 'guestJoin' : 'join', {code, peek:true}); } catch (e) { S.joinCode = null; render(); return toast(errText(e), 5000); }
   S.joinCode = null;
@@ -875,17 +901,18 @@ async function doJoin(code, guest) {
     try {
       const r = await API('join', {code, profile, remember:$('#jfR').checked});
       if ($('#jfR').checked) { S.user.name = r.name; S.user.pos = r.pos; }
-      close(); await refreshList(); openEditor(r.id); toast(info.status === 'planned' ? 'เข้าร่วมนัดตรวจแล้ว · ดูได้ที่เมนู "นัดตรวจ"' : 'เข้าร่วมการตรวจแล้ว', 3500);
+      close(); await refreshList(); openEditor(r.id); toast(r.student ? 'เข้าร่วมช่วยตรวจแล้ว' : info.status === 'planned' ? 'เข้าร่วมนัดตรวจแล้ว · ดูได้ที่เมนู "นัดตรวจ"' : 'เข้าร่วมการตรวจแล้ว', 3500);
     } catch (x) { err.textContent = errText(x); btn.disabled = false; btn.textContent = 'เข้าร่วมตรวจ'; }
   };
   const sc = h('div', {class:'scrim'},
     h('form', {class:'dialog', role:'dialog', 'aria-modal':'true', onsubmit:submit},
-      h('div', {class:'eyebrow'}, info.already ? 'แก้ไขข้อมูลผู้ร่วมตรวจ' : 'เข้าร่วมการตรวจ'),
+      h('div', {class:'eyebrow'}, isStudent() ? 'เข้าร่วมช่วยตรวจ (นักศึกษาฝึกงาน)' : info.already ? 'แก้ไขข้อมูลผู้ร่วมตรวจ' : 'เข้าร่วมการตรวจ'),
       h('h2', null, info.pname || info.no),
       h('p', {class:'small muted'}, info.no + ' · ' + info.areaName + ' · ' + (info.status === 'planned' ? 'นัดตรวจ ' : '') + thDate(info.date, true) + (info.status === 'planned' && info.time ? ' เวลา ' + info.time + ' น.' : '')),
       info.team && info.team.length ? h('div', {class:'lobby-mini'}, h('span', {class:'small muted'}, 'ในทีมตอนนี้: '), info.team.map(t => h('span', {class:'who'}, avatar({u:t.user || t.name, name:t.name}), h('span', null, t.name)))) : null,
       h('div', {class:'divider'}),
-      h('h3', null, 'ข้อมูลของคุณในรายชื่อผู้ตรวจ'),
+      isStudent() ? h('div', {class:'note small'}, 'นักศึกษาฝึกงาน: ให้คะแนน กรอกสิ่งที่พบ และแนบรูปได้ · ชื่อของคุณจะไม่อยู่ในรายชื่อผู้ตรวจ แบบตรวจ และ PDF (ระบบบันทึกไว้ว่าใครช่วยตรวจ)') : null,
+      h('h3', null, isStudent() ? 'ข้อมูลของคุณ' : 'ข้อมูลของคุณในรายชื่อผู้ตรวจ'),
       h('div', {class:'grid2'},
         h('label', {class:'f'}, h('span', null, 'คำนำหน้า'), h('div', {class:'stack', style:'gap:6px'}, pxSel, otherIn)),
         field('ชื่อ', h('input', {type:'text', id:'jfF', value:nm.first, required:true, autocomplete:'given-name'})),
@@ -893,7 +920,7 @@ async function doJoin(code, guest) {
         field('ตำแหน่ง', h('input', {type:'text', id:'jfP', value:src.pos || '', placeholder:'เช่น นักวิชาการสาธารณสุขชำนาญการ'})),
         field('หน่วยงาน', h('input', {type:'text', id:'jfO', list:'orgList', value:src.org || (S.user && !guest ? ((UNITS.find(x => x[0] === S.user.unit) || [])[3] || S.user.unitName || '') : '')}), 1)),
       guest ? h('p', {class:'small muted'}, 'เข้าร่วมแบบไม่มีบัญชี: เห็นและแก้ไขได้เฉพาะการตรวจนี้ ถ้าหลุดหรือเปลี่ยนเครื่อง สแกน QR หรือใส่รหัสเดิม แล้วกรอกชื่อเดิม ระบบจะต่อจากเดิมให้')
-        : h('label', {class:'check'}, h('input', {type:'checkbox', id:'jfR', checked:true}), h('span', null, 'จำข้อมูลนี้ไว้ในบัญชีของฉัน ครั้งหน้าไม่ต้องกรอกใหม่')),
+        : h('label', {class:'check', hidden:isStudent()}, h('input', {type:'checkbox', id:'jfR', checked:!isStudent()}), h('span', null, 'จำข้อมูลนี้ไว้ในบัญชีของฉัน ครั้งหน้าไม่ต้องกรอกใหม่')),
       err,
       h('div', {class:'row acts'}, h('button', {class:'btn', type:'button', onclick:close}, 'ยกเลิก'), h('button', {class:'btn primary', type:'submit'}, info.already ? 'บันทึก' : 'เข้าร่วมตรวจ'))));
   document.body.append(sc);
@@ -943,6 +970,88 @@ async function inviteDialog() {
       h('p', {class:'small muted'}, 'QR และรหัสใช้ได้จนกว่าจะปิดการตรวจ')));
   document.body.append(sc); drawLobby();
 }
+/* ---- ลิงก์ผู้ชม (ดูอย่างเดียว) ---- */
+async function viewDecide(gid, ok) {
+  if (!S.cur) return;
+  if (!ok && !await confirmBox('ไม่อนุมัติ/ยกเลิกสิทธิ์ผู้ชมนี้?', null, 'ยืนยัน', true)) return;
+  try { await API('viewDecide', {id:S.cur.id, gid, ok}); toast(ok ? 'อนุมัติแล้ว ผู้ชมดูได้ 24 ชม.' : 'ไม่อนุมัติแล้ว'); tick(true); if (S._vdRedraw) S._vdRedraw(); } catch (e) { toast(errText(e), 4000); }
+}
+async function viewerDialog() {
+  if (!S.cur) return;
+  const body = h('div', {class:'stack', style:'gap:10px;align-items:center;text-align:center'});
+  const close = () => { sc.remove(); S._vdRedraw = null; S.fastPoll = false; };
+  const draw = async opt => {
+    let r; try { r = await API('viewLink', Object.assign({id:S.cur.id}, opt || {})); } catch (e) { body.replaceChildren(h('p', {class:'small', style:'color:var(--bad)'}, errText(e))); return; }
+    const L = r.link, base = (IN_GAS ? String(r.url || S.appUrl || '') : location.origin + location.pathname).replace(/\/macros\/u\/\d+\/s\//, '/macros/s/');
+    const parts = [];
+    if (!L) parts.push(h('p', {class:'small muted'}, 'สร้างลิงก์ให้ผู้ที่ต้องการดูการตรวจนี้ (เช่น ผู้บริหาร ผู้สังเกตการณ์) · ผู้ชมกรอกชื่อและหน่วยงาน แล้วคุณกดอนุมัติ · ดูได้อย่างเดียว แก้ไขไม่ได้ · สิทธิ์ดู 24 ชม. นับจากอนุมัติ'),
+      h('button', {class:'btn primary', onclick: () => draw({make:true})}, 'สร้างลิงก์ผู้ชม'));
+    else {
+      const url = base + '?v=' + L.code;
+      const img = h('img', {alt:'QR code ลิงก์ผู้ชม', style:'width:min(64vw,240px);height:auto;image-rendering:pixelated;background:#FFFFFF;padding:8px;border-radius:8px'});
+      try { await loadScript(QR_SRC); const q = window.qrcode(0, 'M'); q.addData(url); q.make(); img.src = q.createDataURL(8, 2); } catch { img.alt = 'สร้าง QR ไม่ได้ ใช้ลิงก์แทน'; }
+      parts.push(img, h('div', {class:'joincode'}, L.code), h('p', {class:'small muted'}, 'ลิงก์ใช้ขอเข้าดูได้ถึง ' + fmtDT(L.exp) + ' · ทุกคนที่ขอต้องได้รับอนุมัติก่อน'),
+        h('div', {class:'row', style:'justify-content:center'}, h('button', {class:'btn', onclick: async () => { try { await navigator.clipboard.writeText(url); toast('คัดลอกลิงก์แล้ว'); } catch { toast(url, 8000); } }}, 'คัดลอกลิงก์'),
+          h('button', {class:'btn danger', onclick: () => draw({off:true})}, 'ปิดลิงก์')));
+    }
+    const vs = r.viewers || [];
+    if (vs.length) parts.push(h('div', {class:'divider'}), h('h3', {style:'align-self:flex-start'}, 'ผู้ชม'), h('div', {class:'list', style:'width:100%'}, vs.map(v => h('div', {class:'li', style:'text-align:left'},
+      h('span', {class:'t'}, v.name), h('span', {class:'end'}, h('span', {class:'chip ' + (v.st === 'ok' && v.exp > Date.now() ? 'pass' : v.st === 'wait' ? 'draft' : 'fail')}, v.st === 'wait' ? 'รออนุมัติ' : v.st === 'ok' ? (v.exp > Date.now() ? 'ดูได้ถึง ' + fmtDT(v.exp) : 'หมดอายุ') : 'ไม่อนุมัติ/ยกเลิก')),
+      h('span', {class:'meta'}, h('span', null, v.org), v.by ? h('span', null, 'อนุมัติโดย ' + v.by) : null,
+        v.st === 'wait' ? h('button', {class:'btn sm primary', onclick: () => viewDecide(v.gid, true)}, 'อนุมัติ') : null,
+        v.st === 'wait' ? h('button', {class:'btn sm', onclick: () => viewDecide(v.gid, false)}, 'ไม่อนุมัติ') : null,
+        v.st === 'ok' && v.exp > Date.now() ? h('button', {class:'btn sm danger', onclick: async () => { if (!await confirmBox('ยกเลิกสิทธิ์ดูของ ' + v.name + '?', null, 'ยกเลิกสิทธิ์', true)) return; draw({revoke:v.gid}); }}, 'ยกเลิกสิทธิ์') : null)))));
+    body.replaceChildren(...parts);
+  };
+  S._vdRedraw = () => draw();
+  const sc = h('div', {class:'scrim', onclick: e => { if (e.target === sc) close(); }},
+    h('div', {class:'dialog stack', role:'dialog', 'aria-modal':'true'},
+      h('div', {class:'eyebrow'}, 'ลิงก์ผู้ชม (ดูอย่างเดียว) · ' + S.cur.id), h('h2', null, S.cur.insp.pname || ''), body,
+      h('div', {class:'row', style:'justify-content:flex-end'}, h('button', {class:'btn', onclick:close}, 'ปิด'))));
+  document.body.append(sc); body.append(h('p', {class:'muted small'}, 'กำลังโหลด…')); S.fastPoll = true; draw();
+}
+/* ---- หน้าผู้ชม: ขอเข้าดู → รออนุมัติ → เปิดการตรวจ ---- */
+const VREQ_KEY = 'gmp_vreq';
+function vreqGet() { try { return JSON.parse(localStorage.getItem(VREQ_KEY) || 'null'); } catch { return null; } }
+function vreqSet(v) { try { if (v) localStorage.setItem(VREQ_KEY, JSON.stringify(v)); else localStorage.removeItem(VREQ_KEY); } catch {} }
+function viewViewer() {
+  const box = h('div', {class:'panel stack'});
+  const head = h('div', null, h('div', {class:'eyebrow'}, 'ระบบ ตามตรวจ · ผู้ชม (ดูอย่างเดียว)'));
+  const err = h('p', {class:'small', style:'color:var(--bad);min-height:1.2em', role:'alert'});
+  const req = vreqGet();
+  const stopPoll = () => { clearInterval(S._vpoll); S._vpoll = null; };
+  const waitView = r => {
+    box.replaceChildren(head, h('h1', null, 'รอเจ้าหน้าที่อนุมัติ'), h('p', {class:'small muted'}, 'ส่งคำขอดูการตรวจ ' + (r.pname || r.id || '') + ' แล้ว · เจ้าหน้าที่ในทีมจะเห็นชื่อของคุณและกดอนุมัติ หน้านี้จะเปิดการตรวจให้เองเมื่ออนุมัติแล้ว (ปิดหน้านี้แล้วเปิดลิงก์เดิมกลับมาได้)'),
+      h('div', {class:'spin', 'aria-hidden':'true'}), err, h('button', {class:'linkbtn', type:'button', onclick: () => { stopPoll(); vreqSet(null); S.viewCode = S.viewCode || r.code; render(); }}, 'ยกเลิกคำขอ / กรอกใหม่'));
+    stopPoll();
+    const poll = async () => { try { const s2 = await API('viewStatus', {gid:r.gid, key:r.key});
+      if (s2.st === 'ok') { stopPoll(); vreqSet(null); S.viewCode = null; S.viewEnded = false; try { history.replaceState(null, '', location.pathname); } catch {}
+        S.token = s2.token; try { localStorage.setItem('gmp_token', s2.token); } catch {} await loadAll(); toast('ได้รับอนุมัติแล้ว · ดูได้อย่างเดียว', 3500); }
+      else if (s2.st === 'no' || s2.st === 'gone') { stopPoll(); vreqSet(null); box.replaceChildren(head, h('h1', null, s2.st === 'no' ? 'คำขอไม่ได้รับอนุมัติ' : 'คำขอหมดอายุ'), h('p', {class:'small muted'}, 'ติดต่อเจ้าหน้าที่ในทีมตรวจ หรือขอลิงก์ใหม่')); }
+    } catch (e) { err.textContent = errText(e); } };
+    S._vpoll = setInterval(poll, 4000); poll();
+  };
+  if (S.viewEnded && !S.viewCode) { box.replaceChildren(head, h('h1', null, 'สิทธิ์ดูหมดแล้ว'), h('p', {class:'small muted'}, 'สิทธิ์ผู้ชมหมดอายุ หรือเจ้าหน้าที่ยกเลิกแล้ว ถ้าต้องการดูอีก ขอลิงก์ผู้ชมใหม่จากเจ้าหน้าที่'),
+    h('button', {class:'linkbtn', type:'button', onclick: () => { S.viewEnded = false; render(); }}, 'ไปหน้าเข้าสู่ระบบ')); return h('div', {class:'login'}, box); }
+  if (req && (!S.viewCode || req.code === S.viewCode)) { waitView(req); return h('div', {class:'login'}, box); }
+  box.append(head, h('p', {class:'muted small'}, 'กำลังตรวจสอบลิงก์…'));
+  (async () => {
+    let info; try { info = await API('viewReq', {code:S.viewCode, peek:true}); } catch (e) { box.replaceChildren(head, h('h1', null, 'เปิดลิงก์ไม่ได้'), h('p', null, errText(e))); return; }
+    const submit = async e => { e.preventDefault(); err.textContent = '';
+      const profile = {name:$('#vwN').value.trim(), org:$('#vwO').value.trim(), pos:$('#vwP').value.trim()};
+      const btn = e.currentTarget.querySelector('button[type=submit]'); btn.disabled = true;
+      try { const r = await API('viewReq', {code:S.viewCode, profile}); const rr = {...r, code:S.viewCode, pname:info.pname}; vreqSet(rr); waitView(rr); }
+      catch (x) { err.textContent = errText(x); btn.disabled = false; } };
+    box.replaceChildren(h('form', {class:'stack', onsubmit:submit}, head, h('h1', null, info.pname || info.no),
+      h('p', {class:'small muted'}, info.no + ' · ' + info.areaName + ' · ' + thDate(info.date, true) + (info.by ? ' · ลิงก์จาก ' + info.by : '')),
+      h('div', {class:'note small'}, 'ลิงก์นี้ให้ดูการตรวจได้อย่างเดียว แก้ไขไม่ได้ · กรอกชื่อและหน่วยงาน แล้วรอเจ้าหน้าที่อนุมัติ · ดูได้ 24 ชม. นับจากอนุมัติ'),
+      field('ชื่อ – นามสกุล', h('input', {type:'text', id:'vwN', required:true, autocomplete:'name'})),
+      field('หน่วยงาน', h('input', {type:'text', id:'vwO', required:true, list:'orgList', autocomplete:'organization'})),
+      field('ตำแหน่ง (ถ้ามี)', h('input', {type:'text', id:'vwP', autocomplete:'organization-title'})),
+      err, h('button', {class:'btn primary', type:'submit'}, 'ส่งคำขอดู')));
+  })();
+  return h('div', {class:'login'}, box);
+}
 /* password box with a show/hide (eye) button */
 function pwInput(id, ac, ph) {
   const inp = h('input', {type:'password', id, autocomplete:ac || 'current-password', autocapitalize:'none', spellcheck:'false', placeholder:ph || null});
@@ -959,12 +1068,17 @@ function eyeIcon(open) {
   return svg;
 }
 /* unit picker: first the kind (สสจ. / สสอ. / รพ.), then the unit */
-const UNIT_KIND = k => k === 'PHO' ? 'pho' : (k === 'SSO-M' || k.startsWith('A-')) ? 'sso' : 'hos';
-const UNIT_KINDS = [['pho', 'สสจ.'], ['sso', 'สสอ.'], ['hos', 'โรงพยาบาล']];
-function unitSelect(id, cur, onchange) {
+const UNIT_KIND = k => k === 'PHO' ? 'pho' : k === 'PCU' ? 'pcu' : k === 'MUN' ? 'mun' : (k === 'SSO-M' || k.startsWith('A-')) ? 'sso' : 'hos';
+const UNIT_KINDS = [['pho', 'สสจ.'], ['sso', 'สสอ.'], ['hos', 'โรงพยาบาล'], ['pcu', 'รพ.สต.'], ['mun', 'เทศบาล/อปท.']];
+// รพ.สต. / เทศบาล: ไม่มีรายการให้เลือก ต้องพิมพ์ชื่อหน่วยงาน (ช่อง id + 'Org')
+function unitSelect(id, cur, onchange, org) {
   let kind = cur ? UNIT_KIND(cur) : '';
   const sel = h('select', {id, onchange});
+  const orgIn = h('input', {type:'text', id:id + 'Org', value:org || '', hidden:true, autocomplete:'organization'});
   const fill = () => {
+    const open = kind === 'pcu' || kind === 'mun';
+    orgIn.hidden = !open; sel.hidden = open;
+    if (open) { orgIn.placeholder = kind === 'pcu' ? 'พิมพ์ชื่อ เช่น รพ.สต.บ้านโนนทัน อ.เมืองขอนแก่น' : 'พิมพ์ชื่อ เช่น เทศบาลตำบลบ้านทุ่ม'; const k = kind === 'pcu' ? 'PCU' : 'MUN'; sel.replaceChildren(h('option', {value:k, selected:true}, unitName(k))); sel.value = k; sel.disabled = false; onchange && onchange({target:sel}); return; }
     const list = UNITS.filter(u => UNIT_KIND(u[0]) === kind);
     sel.replaceChildren(h('option', {value:''}, kind ? '— เลือก' + (kind === 'hos' ? 'โรงพยาบาล' : kind === 'sso' ? ' สสอ.' : 'หน่วยงาน') + ' —' : '— เลือกประเภทหน่วยงานก่อน —'),
       list.map(([k, l]) => h('option', {value:k, selected:cur === k}, l)));
@@ -972,9 +1086,9 @@ function unitSelect(id, cur, onchange) {
     if (kind === 'pho' && !sel.value) { sel.value = 'PHO'; onchange && onchange({target:sel}); }
   };
   const seg = h('div', {class:'unitkind', role:'radiogroup', 'aria-label':'ประเภทหน่วยงาน'}, UNIT_KINDS.map(([k, l]) => h('button', {type:'button', role:'radio', 'aria-checked':String(kind === k), 'data-k':k,
-    onclick: () => { if (kind === k) return; kind = k; cur = ''; for (const b of seg.children) b.setAttribute('aria-checked', String(b.dataset.k === k)); fill(); onchange && onchange({target:sel}); if (k !== 'pho') sel.focus(); }}, l)));
+    onclick: () => { if (kind === k) return; kind = k; cur = ''; for (const b of seg.children) b.setAttribute('aria-checked', String(b.dataset.k === k)); fill(); onchange && onchange({target:sel}); if (k === 'pcu' || k === 'mun') orgIn.focus(); else if (k !== 'pho') sel.focus(); }}, l)));
   fill();
-  return h('div', {class:'stack', style:'gap:6px'}, seg, sel);
+  return h('div', {class:'stack', style:'gap:6px'}, seg, sel, orgIn);
 }
 function authGo(v, extra) { S.authView = v; Object.assign(S, extra || {}); render(); window.scrollTo(0, 0); }
 async function afterLogin(r) { NAV.key = ''; S.act = ''; try { localStorage.removeItem('gmp_act'); } catch {} S.token = r.token; try { if (r.user && r.user.username) { localStorage.setItem('gmp_user', r.user.username); S._lastUser = r.user.username; } } catch {} try { localStorage.setItem('gmp_token', r.token); } catch {} S.authView = 'login'; await loadAll(); }
@@ -1020,14 +1134,18 @@ function chkReg() {
 function viewRegister() {
   const err = h('p', {class:'small', style:'color:var(--bad);min-height:1.2em', role:'alert'});
   const note = h('p', {class:'small muted', id:'rgNote'});
+  const stu = S._rgKind === 'student';
   const onUnit = e => { const k = e.target.value, u = UNITS.find(x => x[0] === k);
-    note.textContent = !u ? '' : 'เห็นข้อมูลพื้นที่: ' + unitAreasLabel(k); };
+    note.textContent = !u ? '' : 'เห็นข้อมูล: ' + (stu ? 'เฉพาะการตรวจที่ได้รับเชิญและยังไม่ปิด' : unitAreasLabel(k)); };
+  const kindSeg = h('div', {class:'unitkind', role:'radiogroup', 'aria-label':'ประเภทผู้ใช้'}, [['staff', 'เจ้าหน้าที่'], ['student', 'นักศึกษาฝึกงาน']].map(([k, l]) =>
+    h('button', {type:'button', role:'radio', 'aria-checked':String((S._rgKind || 'staff') === k), onclick: () => { if ((S._rgKind || 'staff') === k) return; S._rgKind = k; render(); }}, l)));
   const submit = async e => {
     e.preventDefault(); err.textContent = '';
     const v = id => $('#' + id).value.trim();
-    const p = {name:(v('rgPx') ? v('rgPx') : '') + v('rgF') + ' ' + v('rgL'), pos:v('rgPos'), area:$('#rgA').value, phone:v('rgT'), email:v('rgE'), username:v('rgU').toLowerCase(), password:$('#rgW').value};
+    const p = {name:(v('rgPx') ? v('rgPx') : '') + v('rgF') + ' ' + v('rgL'), pos:v('rgPos'), area:$('#rgA').value, org:v('rgAOrg'), kind:S._rgKind || 'staff', phone:v('rgT'), email:v('rgE'), username:v('rgU').toLowerCase(), password:$('#rgW').value};
     if (!v('rgF') || !v('rgL')) return err.textContent = 'กรอกชื่อและนามสกุล';
     if (!p.area) return err.textContent = 'เลือกหน่วยงาน';
+    if (OPEN_UNITS.includes(p.area) && p.org.length < 3) return err.textContent = 'พิมพ์ชื่อ' + unitName(p.area) + ' ของคุณ';
     const btn = e.currentTarget.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'กำลังลงทะเบียน…';
     try { const r = await API('register', p);
       if (r.pending) { S._lastUser = p.username; authGo('login'); toast('ลงทะเบียนแล้ว รอผู้ดูแลระบบอนุมัติ จะมีอีเมลแจ้งเมื่อพร้อมใช้', 8000); return; }
@@ -1036,14 +1154,17 @@ function viewRegister() {
   };
   return h('div', {class:'login'}, h('form', {class:'panel stack', onsubmit:submit, autocomplete:'on', oninput:chkReg},
     h('div', null, h('div', {class:'eyebrow'}, 'ระบบ ตามตรวจ'), h('h1', null, 'ลงทะเบียนผู้ใช้งานใหม่'),
-      h('p', {class:'small muted'}, 'สำหรับเจ้าหน้าที่ สสจ. สสอ. และโรงพยาบาลในจังหวัดขอนแก่น กรอกเท่าที่จำเป็น ผู้ดูแลระบบจะอนุมัติแล้วแจ้งทางอีเมล')),
+      h('p', {class:'small muted'}, 'สำหรับเจ้าหน้าที่ สสจ. สสอ. โรงพยาบาล รพ.สต. เทศบาล/อปท. และนักศึกษาฝึกงาน ในจังหวัดขอนแก่น กรอกเท่าที่จำเป็น ผู้ดูแลระบบจะอนุมัติแล้วแจ้งทางอีเมล')),
+    h('label', {class:'f'}, h('span', null, 'ประเภทผู้ใช้'), kindSeg),
+    stu ? h('div', {class:'note small'}, 'นักศึกษาฝึกงาน: เข้าร่วมช่วยตรวจได้เมื่อเจ้าหน้าที่เชิญ (QR/รหัส) ให้คะแนน กรอกสิ่งที่พบ แนบรูปได้ แต่ไม่มีชื่อในแบบตรวจ ลงนามไม่ได้ และเห็นเฉพาะการตรวจที่ยังไม่ปิด') : null,
     S.joinCode ? h('div', {class:'note small'}, 'หลังลงทะเบียน รอผู้ดูแลระบบอนุมัติ (มีอีเมลแจ้ง) แล้วเข้าสู่ระบบและสแกน QR อีกครั้ง (รหัส ' + S.joinCode + ')') : null,
     h('div', {class:'grid2'},
       field('คำนำหน้า', h('select', {id:'rgPx'}, h('option', {value:''}, '— ไม่ระบุ —'), PREFIXES.map(x => h('option', {value:x}, x)))),
       field('ชื่อ', h('input', {type:'text', id:'rgF', required:true, autocomplete:'given-name'})),
       field('นามสกุล', h('input', {type:'text', id:'rgL', required:true, autocomplete:'family-name'})),
-      field('ตำแหน่ง', h('input', {type:'text', id:'rgPos', placeholder:'เช่น นักวิชาการสาธารณสุขชำนาญการ', autocomplete:'organization-title'})),
-      h('label', {class:'f', style:'grid-column:1/-1'}, h('span', null, 'หน่วยงาน'), unitSelect('rgA', '', onUnit), note),
+      stu ? field('สถาบันการศึกษา / คณะ / ชั้นปี', h('input', {type:'text', id:'rgPos', placeholder:'เช่น มหาวิทยาลัยขอนแก่น คณะสาธารณสุขศาสตร์ ปี 4'}))
+        : field('ตำแหน่ง', h('input', {type:'text', id:'rgPos', placeholder:'เช่น นักวิชาการสาธารณสุขชำนาญการ', autocomplete:'organization-title'})),
+      h('label', {class:'f', style:'grid-column:1/-1'}, h('span', null, stu ? 'หน่วยงานที่ฝึกงาน' : 'หน่วยงาน'), unitSelect('rgA', '', onUnit), note),
       field('เบอร์โทร', h('input', {type:'tel', id:'rgT', required:true, inputmode:'tel', autocomplete:'tel', placeholder:'08x-xxx-xxxx'})),
       field('อีเมล (ใช้รับรหัสเมื่อลืมรหัสผ่าน)', h('input', {type:'email', id:'rgE', required:true, autocomplete:'email', autocapitalize:'none'}))),
     h('div', {class:'divider'}),
@@ -1088,16 +1209,16 @@ function viewForgot() {
 function accountDialog() {
   const err = h('p', {class:'small', style:'color:var(--bad)'});
   const close = () => sc.remove();
-  if (isGuest()) {
+  if (isNoAcct()) {
     const g = h('div', {class:'scrim', onclick: e => { if (e.target === g) g.remove(); }}, h('div', {class:'dialog stack', role:'dialog', 'aria-modal':'true'},
-      h('h2', null, S.user.name), h('p', {class:'small muted'}, (S.user.pos ? S.user.pos + ' · ' : '') + (S.user.unitName || '') + ' · ผู้ร่วมตรวจ (ไม่มีบัญชี)'),
+      h('h2', null, S.user.name), h('p', {class:'small muted'}, (S.user.pos ? S.user.pos + ' · ' : '') + (S.user.unitName || '') + (isViewer() ? ' · ผู้ชม (ดูอย่างเดียว) · สิทธิ์ถึง ' + fmtDT(S.user.exp) : ' · ผู้ร่วมตรวจ (ไม่มีบัญชี)')),
       h('div', {class:'row', style:'justify-content:space-between'}, h('button', {class:'btn danger', onclick: () => { g.remove(); logout(); }}, 'ออกจากระบบ'), h('button', {class:'btn', onclick: () => g.remove()}, 'ปิด'))));
     document.body.append(g); return;
   }
   const sc = h('div', {class:'scrim', onclick: e => { if (e.target === sc) close(); }},
     h('div', {class:'dialog', role:'dialog', 'aria-modal':'true'},
       h('h2', null, S.user.name || S.user.username),
-      h('p', {class:'small muted'}, '@' + S.user.username + ' · ' + (S.user.unitName || unitName(S.user.unit)) + (isAdmin() ? ' · ผู้ดูแลระบบ' : '') + ' · เข้าถึง: ' + (S.user.areas === 'ALL' ? 'ทุกพื้นที่' : allowedAreas().map(areaName).join(', '))),
+      h('p', {class:'small muted'}, '@' + S.user.username + ' · ' + (S.user.unitName || unitName(S.user.unit)) + (isAdmin() ? ' · ผู้ดูแลระบบ' : isStudent() ? ' · นักศึกษาฝึกงาน' : '') + ' · เข้าถึง: ' + (isLim() ? 'เฉพาะการตรวจที่ได้รับเชิญและยังไม่ปิด' : S.user.areas === 'ALL' ? 'ทุกพื้นที่' : allowedAreas().map(areaName).join(', '))),
       h('div', {class:'divider'}), h('h3', null, 'ข้อมูลติดต่อของฉัน'),
       h('p', {class:'small muted'}, 'ใช้เติมให้อัตโนมัติในช่อง "เจ้าหน้าที่ผู้ประสานงาน" ของแบบตรวจที่คุณสร้าง'),
       h('div', {class:'grid2'}, field('เบอร์โทร', h('input', {type:'tel', id:'pfT', value:S.user.phone || '', inputmode:'tel'})), field('อีเมล', h('input', {type:'email', id:'pfE', value:S.user.email || ''}))),
@@ -1128,13 +1249,14 @@ function go(view, extra) {
 function render() {
   const nav = $('#nav'), m = $('#main');
   brandSync();
+  if (!S.token && (S.viewCode || vreqGet() || S.viewEnded)) { nav.replaceChildren(); m.replaceChildren(viewViewer()); setSync(); return; }
   if (S.regDecide || !S.token || (!S.user && !S.loadErr && S.ready)) { nav.replaceChildren(); m.replaceChildren(viewLogin()); setSync(); navSync(); return; }
   if (!S.user) { nav.replaceChildren(); m.replaceChildren(S.loadErr ? h('div', {class:'panel stack', style:'max-width:460px'}, h('h2', null, 'โหลดข้อมูลไม่สำเร็จ'), h('p', null, S.loadErr),
       h('div', {class:'row'}, h('button', {class:'btn primary', onclick:loadAll}, 'ลองอีกครั้ง'), h('button', {class:'btn', onclick: () => logoutLocal(false)}, 'เข้าสู่ระบบใหม่'))) :
     h('p', {class:'muted'}, 'กำลังโหลดข้อมูล…')); setSync(); return; }
   if (isGuest()) {
-    nav.replaceChildren(h('button', {'aria-current': S.view === 'guest' ? 'page' : null, onclick: () => go('guest')}, 'การตรวจของฉัน'),
-      h('button', {class:'acct', onclick:accountDialog, title:'ผู้ร่วมตรวจ (ไม่มีบัญชี)'}, S.user.name || 'ผู้ร่วมตรวจ'));
+    nav.replaceChildren(isViewer() ? h('span', {class:'chip plan', style:'align-self:center'}, 'ผู้ชม · ดูอย่างเดียว') : h('button', {'aria-current': S.view === 'guest' ? 'page' : null, onclick: () => go('guest')}, 'การตรวจของฉัน'),
+      h('button', {class:'acct', onclick:accountDialog, title:isViewer() ? 'ผู้ชม' : isLim() ? 'บัญชีผู้ใช้' : 'ผู้ร่วมตรวจ (ไม่มีบัญชี)'}, S.user.name || 'ผู้ร่วมตรวจ'));
     m.replaceChildren(S.view === 'edit' ? viewEdit() : viewGuest()); setSync(); navSync(); return;
   }
   if (!S.act && S.view !== 'edit') { nav.replaceChildren(h('button', {class:'acct', onclick:accountDialog, title:'บัญชีผู้ใช้'}, S.user.name || S.user.username)); m.replaceChildren(viewAct()); setSync(); navSync(); return; }
@@ -1375,12 +1497,17 @@ function pendingPanel() {
     warn.length ? h('div', {class:'note bad small'}, h('b', null, 'ตรวจติดตามครบ 2 ครั้งแล้วยังไม่ผ่านเกณฑ์ ' + warn.length + ' แห่ง — ควรพิจารณาดำเนินการตามกฎหมาย: '),
       warn.map((i, n) => [n ? ', ' : '', h('button', {class:'linkbtn', onclick: () => openEditor(i.no)}, (i.pname || '') + ' (' + i.no + ')')])) : null);
 }
+// การตรวจที่บัญชีจำกัดสิทธิ์เข้าได้ (ทุก พ.ร.บ.) · เฉพาะที่ยังไม่ปิด
+function limList() { return [...(S.insps || []), ...Object.values(MODS).flatMap(M => M.list())].filter(i => !/^(deleted|cancelled|done)$/.test(i.status)); }
 function viewGuest() {
-  const mine = S.insps.filter(i => !/^(deleted|cancelled)$/.test(i.status));
+  if (isViewer()) return h('div', {class:'stack'}, h('h1', null, 'โหมดผู้ชม'), h('p', {class:'muted'}, 'กำลังเปิดการตรวจ…'), h('button', {class:'btn', style:'align-self:flex-start', onclick: () => openEditor(S.user.insp)}, 'เปิดการตรวจ'));
+  const mine = isLim() ? limList() : S.insps.filter(i => !/^(deleted|cancelled)$/.test(i.status));
   return h('div', {class:'stack'},
-    h('div', null, h('div', {class:'eyebrow'}, 'ผู้ร่วมตรวจ · ' + (S.user.unitName || '')), h('h1', null, 'การตรวจของฉัน')),
-    h('p', {class:'small muted', style:'max-width:64ch'}, 'คุณเข้าร่วมโดยไม่มีบัญชี (แบบเดิม) ทำต่อในการตรวจนี้ได้จนเสร็จ ครั้งต่อไปการเข้าร่วมตรวจต้องมีบัญชี ออกจากระบบแล้วกด "ลงทะเบียนผู้ใช้งานใหม่" ได้เลย'),
-    mine.length ? h('div', {class:'list'}, mine.map(i => inspMain(i))) : h('div', {class:'list'}, h('div', {class:'empty'}, 'ยังไม่มีการตรวจ')),
+    h('div', null, h('div', {class:'eyebrow'}, (isStudent() ? 'นักศึกษาฝึกงาน · ' : isLim() ? '' : 'ผู้ร่วมตรวจ · ') + (S.user.unitName || '')), h('h1', null, isStudent() ? 'การตรวจที่ร่วมช่วยตรวจ' : 'การตรวจของฉัน')),
+    h('p', {class:'small muted', style:'max-width:64ch'}, isStudent() ? 'แสดงเฉพาะการตรวจที่คุณได้รับเชิญและยังไม่ปิด · ให้คะแนน กรอกสิ่งที่พบ และแนบรูปได้ · ชื่อของคุณจะไม่อยู่ในแบบตรวจ · การตรวจที่ปิดแล้วจะเปิดดูไม่ได้'
+      : isLim() ? 'บัญชี ' + unitName(S.user.unit) + ' เข้าได้เฉพาะการตรวจที่ได้รับเชิญ (สแกน QR หรือใส่รหัสเชิญ) และยังไม่ปิด · เมื่อปิดการตรวจแล้วจะเปิดดูไม่ได้ · ดูทะเบียนหรือค้นข้อมูลย้อนหลังไม่ได้'
+      : 'คุณเข้าร่วมโดยไม่มีบัญชี (แบบเดิม) ทำต่อในการตรวจนี้ได้จนเสร็จ ครั้งต่อไปการเข้าร่วมตรวจต้องมีบัญชี ออกจากระบบแล้วกด "ลงทะเบียนผู้ใช้งานใหม่" ได้เลย'),
+    mine.length ? h('div', {class:'list'}, mine.map(i => inspMain(i))) : h('div', {class:'list'}, h('div', {class:'empty'}, isLim() ? 'ยังไม่มีการตรวจที่เปิดอยู่ · ขอ QR หรือรหัสเชิญจากเจ้าหน้าที่ในทีม' : 'ยังไม่มีการตรวจ')),
     h('form', {class:'joinbar', onsubmit: e => { e.preventDefault(); const v = $('#joinIn').value; if (v.trim()) doJoin(v); }},
       h('label', {for:'joinIn'}, 'ได้รับรหัสเชิญอีกการตรวจ?'),
       h('input', {type:'text', id:'joinIn', placeholder:'รหัส 6 ตัว', maxlength:'8', autocapitalize:'characters', autocomplete:'off', spellcheck:'false'}),
@@ -1774,9 +1901,10 @@ function drawPresence() {
       h('span', {class:'muted'}, (p.unit && !p.me ? p.unit + ' · ' : '') + (TAB_LABEL[p.tab] || '')))) : null);
 }
 const docPath = d => d + '/' + S.cur.id;
-const locked = () => S.cur && S.cur.insp.status === 'done';
+const locked = () => !!S.cur && (S.cur.insp.status === 'done' || isViewer() || (isStudent() && !STUDENT_TABS.includes(S.tab)));
 function setLocal(doc, path, v) { const o = S.cur[doc]; const parts = path.split('.'); let t = o; for (const p of parts.slice(0, -1)) t = t[p] = isObj(t[p]) ? {...t[p]} : {}; t[parts.at(-1)] = v; }
 function write(doc, path, v, delay) {
+  if (isViewer() || (isStudent() && (doc !== 'res' || /^fu(\.|$)/.test(path)))) return;
   if (locked() && doc !== 'sig') return;
   setLocal(doc, path, v); queue(doc, path, v, delay);
   if (doc !== 'sig') { refreshCalc(); scheduleSummary(); } else queueMicrotask(syncSigs);
@@ -1859,13 +1987,14 @@ function viewEdit() {
   const i = S.cur.insp;
   const wrap = h('div', {class:'stack', id:'ed'});
   wrap.append(
-    h('button', {class:'btn ghost sm', style:'align-self:flex-start', onclick: () => go(isGuest() ? 'guest' : curMod() ? curMod().home : 'reg')}, isGuest() ? '← การตรวจของฉัน' : curMod() ? '← ' + curMod().homeLabel : '← ทะเบียนผลตรวจ'),
+    isViewer() ? null : h('button', {class:'btn ghost sm', style:'align-self:flex-start', onclick: () => go(isGuest() ? 'guest' : curMod() ? curMod().home : 'reg')}, isGuest() ? '← การตรวจของฉัน' : curMod() ? '← ' + curMod().homeLabel : '← ทะเบียนผลตรวจ'),
     h('div', {class:'ed-head'},
       h('div', {class:'row'}, h('span', {class:'mono small muted', id:'edNo'}, i.no || i.id), h('span', {id:'edType'})),
       h('h1', {id:'edTitle'}, i.pname || 'กำลังโหลด…'),
       h('div', {class:'small muted', id:'edSub'}),
-      h('div', {class:'row', style:'gap:8px'}, h('div', {class:'presence', id:'presence', 'aria-live':'polite', style:'flex:1;min-width:0'}),
-        i.status !== 'done' ? h('button', {class:'btn sm', type:'button', onclick:inviteDialog}, 'เชิญร่วมตรวจ (QR)') : null)),
+      h('div', {class:'row', style:'gap:8px;flex-wrap:wrap'}, h('div', {class:'presence', id:'presence', 'aria-live':'polite', style:'flex:1 1 240px;min-width:0'}),
+        i.status !== 'done' && !isGuest() ? h('button', {class:'btn sm', type:'button', onclick:inviteDialog}, 'เชิญร่วมตรวจ (QR)') : null,
+        !isGuest() && !/^(cancelled|deleted)$/.test(i.status || '') ? h('button', {class:'btn sm', type:'button', onclick:viewerDialog, title:'ให้ผู้ชมดูการตรวจนี้ได้อย่างเดียว'}, 'ลิงก์ผู้ชม') : null)),
     h('div', {id:'lockNote'}),
     h('div', {class:'tabs', role:'tablist', id:'tabs'}),
     h('div', {id:'tabBody'}));
@@ -1881,6 +2010,13 @@ function syncHead() {
 }
 function headNotes() {
   const i = S.cur.insp, out = [], ed = i.edition || 1;
+  if (isViewer()) out.push(h('div', {class:'note small'}, h('b', null, 'โหมดผู้ชม · ดูได้อย่างเดียว '), '· แก้ไขข้อมูลไม่ได้ · สิทธิ์ดูถึง ' + fmtDT(S.user.exp) + ' (เจ้าหน้าที่ยกเลิกได้ทุกเมื่อ)'));
+  else if (isStudent()) out.push(h('div', {class:'note small'}, h('b', null, 'นักศึกษาฝึกงาน (ช่วยตรวจ) '), '· ให้คะแนน กรอกสิ่งที่พบ และแนบรูปได้ในแท็บแบบตรวจและสรุปผล · แท็บอื่นดูได้อย่างเดียว · ชื่อของคุณไม่อยู่ในแบบตรวจ · การลงนามและปิดการตรวจทำโดยเจ้าหน้าที่'));
+  else if (isLim()) out.push(h('div', {class:'note small'}, h('b', null, unitName(S.user.unit) + ' '), '· ร่วมตรวจและลงนามได้ · การปิดการตรวจและส่งผลทำโดยเจ้าหน้าที่ สสจ./สสอ./รพ. ในทีม · เมื่อปิดการตรวจแล้วบัญชีนี้จะเปิดการตรวจนี้ไม่ได้'));
+  if (!isGuest()) { const wait = Object.entries(i.viewers || {}).filter(([, v]) => v.st === 'wait');
+    if (wait.length) out.push(h('div', {class:'note warn stack', style:'gap:6px'}, h('b', null, 'มีผู้ขอดูการตรวจนี้ (ดูอย่างเดียว) ' + wait.length + ' คน'),
+      wait.map(([g, v]) => h('div', {class:'row', style:'gap:8px;flex-wrap:wrap'}, h('span', {style:'flex:1;min-width:180px'}, h('b', null, v.name), ' · ' + v.org + (v.pos ? ' · ' + v.pos : '') + ' · ' + fmtDT(v.at)),
+        h('button', {class:'btn sm primary', onclick: () => viewDecide(g, true)}, 'อนุมัติ'), h('button', {class:'btn sm', onclick: () => viewDecide(g, false)}, 'ไม่อนุมัติ'))))); }
   if (isFu()) out.push(h('div', {class:'note spread'},
     h('span', null, 'ตรวจติดตามผลการแก้ไขครั้งที่ ' + i.round + ' ของการตรวจเลขที่ ', h('b', null, i.parent), ' (ตรวจเมื่อ ' + thDate(i.pdate) + ') · ' + (i.fuMode === 'evidence' ? 'พิจารณาจากหลักฐาน' : 'ตรวจ ณ สถานที่ผลิต')),
     isGuest() ? null : h('div', {class:'headbtns'}, h('button', {class:'btn sm', onclick: () => openEditor(i.parent)}, 'เปิดการตรวจครั้งแรก'),
@@ -2643,7 +2779,11 @@ function fullOrg(o) { o = String(o || '').trim(); const u = UNITS.find(x => x[1]
 function agencyOf(i) { const ins = i.ins || {}; const orgs = Object.keys(ins).sort((a, b) => a - b).map(k => ins[k]).filter(x => x && String(x.name || '').trim()).map(x => fullOrg(x.org)).filter(Boolean);
   const u = orgs.filter((x, n) => orgs.indexOf(x) === n); return u.length ? u.join(', ') : (i.agency || ''); }
 function insList() { const ins = S.cur.insp.ins || {}; return Object.keys(ins).sort((a, b) => a - b).map(k => ({k, ...ins[k]})).filter(x => (x.name || '').trim()); }
+function limNote() {
+  return h('div', {class:'note small'}, isViewer() ? 'โหมดผู้ชม: ดูได้อย่างเดียว' : isStudent() ? 'นักศึกษาฝึกงานช่วยตรวจได้ แต่ลงนาม ปิดการตรวจ และส่งผลไม่ได้ เจ้าหน้าที่ในทีมเป็นผู้ดำเนินการ' : 'การปิดการตรวจและส่งผลทำโดยเจ้าหน้าที่ สสจ./สสอ./รพ. ในทีม');
+}
 function finishView() {
+  if (isGuest() && !isNoAcct() || isViewer()) return limNote();
   if (curMod()) return curMod().finishView();
   const i = S.cur.insp, sig = S.cur.sig || {}, fu = isFu();
   const fin = fu ? (i.status === 'done' ? i.final : fuCalc().result) : calc(i, S.cur.res).final;
@@ -2827,6 +2967,7 @@ function emailBodyText() {
     due ? 'ขอให้ส่งหลักฐานการแก้ไขภายในวันที่ ' + thDate(due, true) : ''].filter(Boolean).concat(tail).join('\n');
 }
 function sendPanel() {
+  if (isGuest() && !isNoAcct() || isViewer()) return h('div', {class:'panel stack', id:'sendPanel'}, h('h2', null, 'เอกสารผลการตรวจ'), limNote());
   const i = S.cur.insp, fu = isFu();
   if (i.status !== 'done') return h('div', {class:'panel stack', id:'sendPanel'}, h('h2', null, 'เอกสารผลการตรวจ'),
     h('p', {class:'small muted'}, 'ลงนามให้ครบแล้วกด "ปิดการตรวจ" ด้านบนก่อน ส่วนสร้าง PDF และส่งอีเมลจะเปิดให้ใช้หลังปิดการตรวจ'));
@@ -3199,7 +3340,7 @@ function viewUsers() {
     try { const us = await API('users'); S._users = us;
       listBox.replaceChildren(...(us.length ? us.map(u => h('button', {class:'li', onclick: () => edit(u)},
         h('span', {class:'no'}, '@' + u.username), h('span', {class:'t'}, u.name || u.username),
-        h('span', {class:'end'}, u.role === 'admin' ? h('span', {class:'chip t-LC'}, 'ผู้ดูแลระบบ') : null, /^(self|rejected)$/.test(u.via) ? h('span', {class:'chip'}, 'ลงทะเบียนเอง') : null, !u.active ? h('span', {class:'chip fail'}, u.via === 'self' ? 'รออนุมัติ' : u.via === 'rejected' ? 'ไม่อนุมัติ' : 'ปิดใช้งาน') : null),
+        h('span', {class:'end'}, u.role === 'admin' ? h('span', {class:'chip t-LC'}, 'ผู้ดูแลระบบ') : u.role === 'student' ? h('span', {class:'chip plan'}, 'นักศึกษาฝึกงาน') : null, /^(self|rejected)$/.test(u.via) ? h('span', {class:'chip'}, 'ลงทะเบียนเอง') : null, !u.active ? h('span', {class:'chip fail'}, u.via === 'self' ? 'รออนุมัติ' : u.via === 'rejected' ? 'ไม่อนุมัติ' : 'ปิดใช้งาน') : null),
         h('span', {class:'meta'}, h('span', null, u.unitName || unitName(u.unit || u.area)), u.pos ? h('span', null, u.pos) : null, u.phone ? h('span', null, '☎ ' + u.phone) : null))) : [h('div', {class:'empty'}, 'ยังไม่มีผู้ใช้')]));
     } catch (e) { listBox.replaceChildren(h('div', {class:'empty'}, errText(e))); }
   };
@@ -3215,21 +3356,21 @@ function viewUsers() {
         field('เบอร์โทร', h('input', {type:'tel', id:'uT', value:u.phone || ''})),
         field('อีเมล', h('input', {type:'email', id:'uE', value:u.email || ''})),
         field('หน่วยงาน', (() => { const note = h('span', {class:'small muted', id:'uAnote'}, unitAreasLabel(u.unit || u.area) ? 'เข้าถึงพื้นที่: ' + unitAreasLabel(u.unit || u.area) : '');
-          const s = unitSelect('uA', u.unit || u.area, e => { note.textContent = e.target.value ? 'เข้าถึงพื้นที่: ' + unitAreasLabel(e.target.value) : ''; });
+          const s = unitSelect('uA', u.unit || u.area, e => { note.textContent = e.target.value ? 'เข้าถึงพื้นที่: ' + unitAreasLabel(e.target.value) : ''; }, u.org || '');
           return h('div', {class:'stack', style:'gap:4px'}, s, note); })()),
-        field('สิทธิ์', h('select', {id:'uR'}, h('option', {value:'area', selected:u.role !== 'admin'}, 'ผู้ตรวจ (เห็นตามพื้นที่ของหน่วยงาน)'), h('option', {value:'admin', selected:u.role === 'admin'}, 'ผู้ดูแลระบบ (เห็นทั้งจังหวัด + จัดการผู้ใช้)'))),
+        field('สิทธิ์', h('select', {id:'uR'}, h('option', {value:'area', selected:u.role !== 'admin' && u.role !== 'student'}, 'ผู้ตรวจ (เห็นตามพื้นที่ของหน่วยงาน)'), h('option', {value:'student', selected:u.role === 'student'}, 'นักศึกษาฝึกงาน (ช่วยตรวจ ไม่มีชื่อในแบบตรวจ)'), h('option', {value:'admin', selected:u.role === 'admin'}, 'ผู้ดูแลระบบ (เห็นทั้งจังหวัด + จัดการผู้ใช้)'))),
         field(isNew ? 'รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัว)' : 'ตั้งรหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)', h('input', {type:'text', id:'uW', autocomplete:'off'}))),
       h('label', {class:'check'}, h('input', {type:'checkbox', id:'uX', checked:u.active !== false}), h('span', null, 'เปิดใช้งานบัญชีนี้')),
       err,
       h('div', {class:'row'}, h('button', {class:'btn primary', onclick: async e => { err.textContent = ''; e.currentTarget.disabled = true;
-          try { await API('saveUser', {username:$('#uU').value, name:$('#uN').value, pos:$('#uP').value, phone:$('#uT').value, email:$('#uE').value, area:$('#uA').value, role:$('#uR').value, password:$('#uW').value, active:$('#uX').checked});
+          try { await API('saveUser', {username:$('#uU').value, name:$('#uN').value, pos:$('#uP').value, phone:$('#uT').value, email:$('#uE').value, area:$('#uA').value, org:($('#uAOrg') || {}).value || '', role:$('#uR').value, password:$('#uW').value, active:$('#uX').checked});
             toast('บันทึกผู้ใช้แล้ว แจ้งชื่อผู้ใช้และรหัสผ่านให้เจ้าหน้าที่'); edit(null); load(); }
           catch (x) { err.textContent = errText(x); } e.currentTarget && (e.currentTarget.disabled = false); }}, isNew ? 'เพิ่มผู้ใช้' : 'บันทึกการแก้ไข'),
         !isNew ? h('button', {class:'btn', onclick: () => edit(null)}, 'ยกเลิก') : null));
     form.scrollIntoView({block:'nearest'});
   };
   wrap.append(h('div', null, h('div', {class:'eyebrow'}, 'ผู้ดูแลระบบ'), h('h1', null, 'ผู้ใช้งาน')),
-    h('p', {class:'muted small', style:'max-width:70ch'}, 'หน่วยงานกำหนดพื้นที่ที่เข้าถึงได้: สสจ. เห็นทุกพื้นที่ · สสอ.เมือง เห็นอำเภอเมืองทั้งหมด · รพ.ขอนแก่น เห็นทุกตำบลในอำเภอเมือง ยกเว้น ต.ท่าพระ ต.ดอนหัน · รพ.สิรินธร เห็น ต.ท่าพระ ต.ดอนหัน และ อ.บ้านแฮด · สสอ.บ้านแฮด เห็นเฉพาะ อ.บ้านแฮด · สสอ. และโรงพยาบาลประจำอำเภออื่น เห็นเฉพาะอำเภอของตน'),
+    h('p', {class:'muted small', style:'max-width:70ch'}, 'หน่วยงานกำหนดพื้นที่ที่เข้าถึงได้: สสจ. เห็นทุกพื้นที่ · สสอ.เมือง เห็นอำเภอเมืองทั้งหมด · รพ.ขอนแก่น เห็นทุกตำบลในอำเภอเมือง ยกเว้น ต.ท่าพระ ต.ดอนหัน · รพ.สิรินธร เห็น ต.ท่าพระ ต.ดอนหัน และ อ.บ้านแฮด · สสอ.บ้านแฮด เห็นเฉพาะ อ.บ้านแฮด · สสอ. และโรงพยาบาลประจำอำเภออื่น เห็นเฉพาะอำเภอของตน · รพ.สต. เทศบาล/อปท. และนักศึกษาฝึกงาน เข้าได้เฉพาะการตรวจที่ได้รับเชิญและยังไม่ปิด (นักศึกษาไม่มีชื่อในแบบตรวจและลงนามไม่ได้)'),
     form, h('h2', null, 'รายชื่อผู้ใช้'), listBox);
   edit(null); load();
   return wrap;
