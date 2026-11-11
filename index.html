@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <script>window.TT_API = 'https://script.google.com/macros/s/AKfycbx1J31lHBJeJiMLFgOhEoTUbD-xA7krFz8dpTD5l1v0uMwsq2p94j9W45z0Zcg6ZCsu/exec';</script>
 <title>ระบบ ตามตรวจ</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1D5B3A">
+<meta name="apple-mobile-web-app-title" content="ตามตรวจ">
+<meta name="application-name" content="ตามตรวจ">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&family=Sarabun:ital,wght@0,400;0,600;0,700;1,400&display=swap">
@@ -568,19 +575,33 @@ async function apiFetch(action, p) {
   try { r = await fetch(window.TT_API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({token:S.token, action, p:p || {}}), redirect:'follow'}); }
   catch (e) { throw new Error('Failed to fetch'); }
   let o; try { o = await r.json(); } catch (e) { throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง ลองอีกครั้ง'); }
-  if ('err' in o) { if (o.err === 'AUTH' && action !== 'login') logoutLocal(true); throw new Error(o.err); }
+  if ('err' in o) throw new Error(o.err);
   return o.ok;
 }
-function API(action, p) {
+function API0(action, p) {
   if (!IN_GAS && window.TT_API) return apiFetch(action, p);
   return new Promise((res, rej) => {
     if (!IN_GAS) return rej(new Error('NOSERVER'));
-    google.script.run.withSuccessHandler(res).withFailureHandler(e => {
-      const m = String(e && e.message || e).replace(/^(Exception|Error):\s*/, '');
-      if (m === 'AUTH' && action !== 'login') logoutLocal(true);
-      rej(new Error(m));
-    }).api(S.token, action, p || {});
+    google.script.run.withSuccessHandler(res).withFailureHandler(e => rej(new Error(String(e && e.message || e).replace(/^(Exception|Error):\s*/, '')))).api(S.token, action, p || {});
   });
+}
+// จดจำการเข้าระบบ: session หมดอายุ → ขอ session ใหม่ด้วย remember token ของเครื่องนี้ แล้วทำรายการเดิมต่อ
+const NO_RESUME = new Set(['login', 'gLogin', 'resume', 'logout', 'register', 'forgotPw', 'resetPw', 'pubCfg', 'regDecide', 'viewReq', 'viewStatus']);
+const getRt = () => { try { return localStorage.getItem('gmp_rt') || ''; } catch { return ''; } };
+const setRt = v => { try { if (v) localStorage.setItem('gmp_rt', v); else localStorage.removeItem('gmp_rt'); } catch {} };
+let resumeP = null;
+function tryResume() {
+  const rt = getRt(); if (!rt) return Promise.resolve(false);
+  return resumeP || (resumeP = API0('resume', {rt}).then(r => { S.token = r.token; try { localStorage.setItem('gmp_token', r.token); } catch {} return true; })
+    .catch(e => { if (e.message === 'AUTH') setRt(''); return false; }).finally(() => { setTimeout(() => { resumeP = null; }, 0); }));
+}
+async function API(action, p) {
+  try { return await API0(action, p); }
+  catch (e) {
+    if (e.message !== 'AUTH' || NO_RESUME.has(action)) throw e;
+    if (!isViewer() && await tryResume()) return API0(action, p);
+    logoutLocal(true); throw e;
+  }
 }
 async function loadFiles(ids) {
   const need = [...new Set(ids)].filter(id => id && !S.fileCache[id]);
@@ -669,7 +690,7 @@ function applyRemote(doc) {
   const was = c.insp && c.insp.status;
   c.insp = doc.insp || {}; c.res = doc.res || {}; c.sig = doc.sig || {};
   checkJoins(c.insp);
-  if (c.insp.status === 'done') Q.pending = Q.pending.filter(([d, p]) => d === 'insp' && /^(status|doneAt|pdfId)$/.test(p));
+  if (c.insp.status === 'done') Q.pending = Q.pending.filter(([d, p]) => (d === 'insp' && /^(status|doneAt|pdfId)$/.test(p)) || (d === 'sig' && AP_RE.test(p)));
   for (const [d, p, v] of Q.pending) setLocal(d, p, v);
   syncEditor(); syncSigs();
   if (was !== 'done' && c.insp.status === 'done') { redrawTab(); showResult(); }
@@ -766,7 +787,14 @@ const isFu = (i) => ((i || (S.cur && S.cur.insp) || {}).kind === 'fu');
 const fik = x => x.form + '_' + kk(x.k);
 function fuLabel(x) { return x.form === 'sum' ? 'ข้อบกพร่องรุนแรง (9)' : (x.form === 'ts2' ? 'ตส.2 ' : SPEC[x.form].short + ' ') + x.k; }
 function s0Label(x) { return x.form === 'sum' ? 'ข้อบกพร่องรุนแรง' : x.form === 'ts2' ? (x.s0 === 0 ? 'ปรับปรุง (0)' : 'พอใช้ (1)') : 'ไม่ผ่าน'; }
-/* recompute the first inspection's result with fixed items counted as "ดี"/"ผ่าน" */
+// คะแนนใหม่จากการตรวจติดตาม: ตส.2 ใช้คะแนนที่ให้ใหม่ (2/1/0) · ตส.3–5 แก้ไขแล้ว = ผ่าน · ยังไม่บันทึก = null (ใช้ผลเดิม)
+function fuScore(x, v) {
+  v = v || {}; if (x.form === 'sum') return null;
+  if (x.form === 'ts2') { if (v.s === 0 || v.s === 1 || v.s === 2) return v.s; return v.st === 'fixed' ? 2 : null; }
+  return v.st === 'fixed' ? 'p' : v.st === 'not' ? 'f' : null;
+}
+const S_LABEL = {2:'ดี (2)', 1:'พอใช้ (1)', 0:'ปรับปรุง (0)', p:'ผ่าน', f:'ไม่ผ่าน'};
+/* recompute the first inspection's result with the follow-up scores ("แก้ไขแล้ว" = ดี/ผ่าน) */
 function fuCalc(i, res) {
   i = i || S.cur.insp; res = res || S.cur.res || {};
   const items = i.items || [], it = res.it || {}, synth = {sum:{}};
@@ -776,7 +804,8 @@ function fuCalc(i, res) {
     const st = (it[fik(x)] || {}).st;
     if (st === 'fixed') fixed++; else if (st === 'not') not++; else pending++;
     if (x.form === 'sum') { if (st !== 'fixed') extra.push(x.t); continue; }
-    if (st === 'fixed') { synth[x.form] = synth[x.form] || {}; synth[x.form][kk(x.k)] = {s: x.form === 'ts2' ? 2 : 'p'}; }
+    const ns = fuScore(x, it[fik(x)]);
+    if (ns != null) { synth[x.form] = synth[x.form] || {}; synth[x.form][kk(x.k)] = {s: ns}; }
   }
   const n9 = String(res.new9 || '').trim(); if (n9) extra.push(n9);
   synth.sum.other9 = extra.join(' / ');
@@ -816,7 +845,9 @@ function boot() {
   const onJ = j => { NAV.ready = true; if (!j) navSync(); if (j) { S.joinCode = String(j).toUpperCase(); if (S.user) doJoin(); else render(); } };
   try { if (IN_GAS && google.script.url) google.script.url.getLocation(loc => onJ(loc && loc.parameter && loc.parameter.j)); else onJ(new URLSearchParams(location.search).get('j')); } catch {}
   render();
+  if (IN_GAS || window.TT_API) API0('pubCfg').then(c => { S.gcid = c.gid || ''; S.remDays = c.remember || 0; if (!S.user) render(); }).catch(() => {});
   if (S.token) loadAll();
+  else if (getRt()) tryResume().then(ok => { if (ok) loadAll(); });
   setInterval(() => { if (document.visibilityState === 'visible' && (['reg','places','place'].includes(S.view) || Object.values(MODS).some(M => M.listViews.includes(S.view)))) refreshList(); if (document.visibilityState === 'visible' && S.view === 'plan') loadPlans(); }, 60000);
 }
 const sortPlaces = a => (a || []).sort((x, y) => String(x.name || '').localeCompare(String(y.name || ''), 'th'));
@@ -855,11 +886,12 @@ async function refreshList() {
 function logoutLocal(expired) {
   const wasViewer = isViewer();
   try { localStorage.removeItem('gmp_token'); } catch {}
+  if (!expired) setRt('');
   if (wasViewer && expired) { S.viewEnded = true; }
   clearInterval(S.poll); S.token = null; S.user = null; S.cur = null; S.view = 'reg'; S.act = ''; Q.pending = []; NAV.key = ''; S.authView = 'login';
   render(); if (expired && !wasViewer) toast('หมดเวลาการเข้าใช้งาน กรุณาเข้าสู่ระบบใหม่', 4000);
 }
-async function logout() { try { await API('logout'); } catch {} logoutLocal(false); }
+async function logout() { try { await API0('logout', {rt:getRt()}); } catch {} logoutLocal(false); }
 const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ดร.'];
 function splitName(full) {
   let n = String(full || '').trim(), prefix = '';
@@ -1091,7 +1123,7 @@ function unitSelect(id, cur, onchange, org) {
   return h('div', {class:'stack', style:'gap:6px'}, seg, sel, orgIn);
 }
 function authGo(v, extra) { S.authView = v; Object.assign(S, extra || {}); render(); window.scrollTo(0, 0); }
-async function afterLogin(r) { NAV.key = ''; S.act = ''; try { localStorage.removeItem('gmp_act'); } catch {} S.token = r.token; try { if (r.user && r.user.username) { localStorage.setItem('gmp_user', r.user.username); S._lastUser = r.user.username; } } catch {} try { localStorage.setItem('gmp_token', r.token); } catch {} S.authView = 'login'; await loadAll(); }
+async function afterLogin(r) { setRt(r.rt || ''); NAV.key = ''; S.act = ''; try { localStorage.removeItem('gmp_act'); } catch {} S.token = r.token; try { if (r.user && r.user.username) { localStorage.setItem('gmp_user', r.user.username); S._lastUser = r.user.username; } } catch {} try { localStorage.setItem('gmp_token', r.token); } catch {} S.authView = 'login'; await loadAll(); }
 function viewRegDecide() {
   const d = S.regDecide, out = h('div', {class:'stack', style:'gap:8px'});
   const run = async () => { btn.disabled = true; out.replaceChildren(h('p', {class:'small muted'}, 'กำลังบันทึก…'));
@@ -1111,9 +1143,14 @@ function viewLogin() {
   const err = h('p', {class:'small', style:'color:var(--bad);min-height:1.2em', role:'alert'});
   const submit = async e => {
     e.preventDefault(); const btn = e.currentTarget.querySelector('button[type=submit]'); btn.disabled = true; err.textContent = '';
-    try { await afterLogin(await API('login', {username:$('#lgU').value, password:$('#lgP').value})); }
+    try { await afterLogin(await API('login', {username:$('#lgU').value, password:$('#lgP').value, remember:remember()})); }
     catch (x) { err.textContent = errText(x); btn.disabled = false; }
   };
+  const remember = () => S._remember !== false && (S.remDays || 0) > 0;
+  const remBox = S.remDays > 0 ? h('label', {class:'chk small', style:'display:flex;gap:8px;align-items:flex-start'},
+    h('input', {type:'checkbox', id:'lgR', checked:S._remember !== false, onchange: e => { S._remember = e.target.checked; }}),
+    h('span', null, 'จดจำการเข้าระบบในเครื่องนี้ ' + S.remDays + ' วัน', h('br'), h('span', {class:'muted'}, 'ไม่ต้องติ๊ก ถ้าเป็นเครื่องส่วนกลาง/เครื่องของคนอื่น'))) : null;
+  const gBox = S.gcid && !IN_GAS ? googleButton(err, remember) : null;
   return h('div', {class:'login'}, h('form', {class:'panel stack', onsubmit:submit},
     h('div', null, h('div', {class:'eyebrow'}, 'เข้าสู่ระบบ'), h('h1', null, 'ระบบ ตามตรวจ'), h('p', {class:'small muted'}, 'แบบตรวจ GMP ออนไลน์ และทะเบียนผลการตรวจสถานที่ผลิตอาหาร จ.ขอนแก่น')),
     S.joinCode ? h('div', {class:'note stack', style:'gap:8px'}, h('b', null, 'คุณได้รับเชิญร่วมตรวจ (รหัส ' + S.joinCode + ')'),
@@ -1121,9 +1158,31 @@ function viewLogin() {
       h('span', {class:'small'}, 'ยังไม่มีบัญชี? ', h('button', {class:'linkbtn', type:'button', onclick: () => authGo('register')}, 'ลงทะเบียนผู้ใช้งานใหม่'), ' (รอผู้ดูแลระบบอนุมัติก่อนใช้งาน)')) : null,
     field('ชื่อผู้ใช้', h('input', {type:'text', id:'lgU', value:S._lastUser || '', autocomplete:'username', autocapitalize:'none', spellcheck:'false', required:true})),
     field('รหัสผ่าน', pwInput('lgP', 'current-password')),
-    err, h('button', {class:'btn primary', type:'submit'}, 'เข้าสู่ระบบ'),
+    remBox, err, h('button', {class:'btn primary', type:'submit'}, 'เข้าสู่ระบบ'),
+    gBox ? h('div', {class:'divider', style:'text-align:center'}, h('span', {class:'small muted'}, 'หรือ')) : null, gBox,
     h('div', {class:'spread'}, h('button', {class:'linkbtn', type:'button', onclick: () => authGo('forgot')}, 'ลืมรหัสผ่าน?'),
       h('button', {class:'linkbtn', type:'button', onclick: () => authGo('register')}, 'ลงทะเบียนผู้ใช้งานใหม่'))));
+}
+/* ปุ่ม "ลงชื่อเข้าใช้ด้วย Google" (Google Identity Services) · ใช้ได้กับอีเมลที่ตรงกับบัญชีที่อนุมัติแล้ว */
+const GSI = 'https://accounts.google.com/gsi/client';
+let gsiP = null;
+function loadGsi() { return gsiP || (gsiP = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = GSI; sc.async = true; sc.onload = res; sc.onerror = () => { gsiP = null; rej(new Error('โหลดปุ่ม Google ไม่สำเร็จ')); }; document.head.append(sc); })); }
+function googleButton(err, remember) {
+  const box = h('div', {class:'stack', style:'gap:6px;align-items:center'});
+  const slot = h('div', {style:'min-height:44px'});
+  box.append(slot, h('p', {class:'small muted', style:'text-align:center;margin:0'}, 'ใช้อีเมล Google ที่ลงทะเบียนไว้ในระบบ · ถ้าเปิดจาก LINE ให้กด ⋮ แล้วเลือก "เปิดในเบราว์เซอร์" ก่อน'));
+  loadGsi().then(() => {
+    const g = window.google && google.accounts && google.accounts.id; if (!g) return;
+    g.initialize({client_id:S.gcid, ux_mode:'popup', auto_select:false, callback: async resp => {
+      err.textContent = 'กำลังตรวจสอบบัญชี Google…';
+      try { const r = await API('gLogin', {cred:resp.credential, remember:remember()});
+        if (r.needReg) { err.textContent = ''; authGo('register', {_gReg:{email:r.email, name:r.name}}); toast('ยังไม่มีบัญชีที่ใช้อีเมล ' + r.email + ' กรอกข้อมูลเพื่อลงทะเบียน (รอผู้ดูแลอนุมัติ)', 7000); return; }
+        err.textContent = ''; await afterLogin(r);
+      } catch (x) { err.textContent = errText(x); }
+    }});
+    g.renderButton(slot, {theme:'outline', size:'large', text:'signin_with', shape:'pill', locale:'th', width:Math.min(320, Math.max(220, box.clientWidth || 300))});
+  }).catch(e => { slot.replaceChildren(h('span', {class:'small muted'}, e.message)); });
+  return box;
 }
 function chkReg() {
   const u = ($('#rgU') || {}).value || '', w = ($('#rgW') || {}).value || '';
@@ -1134,7 +1193,8 @@ function chkReg() {
 function viewRegister() {
   const err = h('p', {class:'small', style:'color:var(--bad);min-height:1.2em', role:'alert'});
   const note = h('p', {class:'small muted', id:'rgNote'});
-  const stu = S._rgKind === 'student';
+  const stu = S._rgKind === 'student', gr = S._gReg || null;
+  const gParts = gr ? String(gr.name || '').trim().split(/\s+/) : [];
   const onUnit = e => { const k = e.target.value, u = UNITS.find(x => x[0] === k);
     note.textContent = !u ? '' : 'เห็นข้อมูล: ' + (stu ? 'เฉพาะการตรวจที่ได้รับเชิญและยังไม่ปิด' : unitAreasLabel(k)); };
   const kindSeg = h('div', {class:'unitkind', role:'radiogroup', 'aria-label':'ประเภทผู้ใช้'}, [['staff', 'เจ้าหน้าที่'], ['student', 'นักศึกษาฝึกงาน']].map(([k, l]) =>
@@ -1147,8 +1207,9 @@ function viewRegister() {
     if (!p.area) return err.textContent = 'เลือกหน่วยงาน';
     if (OPEN_UNITS.includes(p.area) && p.org.length < 3) return err.textContent = 'พิมพ์ชื่อ' + unitName(p.area) + ' ของคุณ';
     const btn = e.currentTarget.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'กำลังลงทะเบียน…';
+    p.remember = S._remember !== false;
     try { const r = await API('register', p);
-      if (r.pending) { S._lastUser = p.username; authGo('login'); toast('ลงทะเบียนแล้ว รอผู้ดูแลระบบอนุมัติ จะมีอีเมลแจ้งเมื่อพร้อมใช้', 8000); return; }
+      if (r.pending) { S._lastUser = p.username; authGo('login', {_gReg:null}); toast('ลงทะเบียนแล้ว รอผู้ดูแลระบบอนุมัติ จะมีอีเมลแจ้งเมื่อพร้อมใช้', 8000); return; }
       await afterLogin(r); toast('ลงทะเบียนสำเร็จ ยินดีต้อนรับ', 3500);
     } catch (x) { err.textContent = errText(x); btn.disabled = false; btn.textContent = 'ลงทะเบียน'; }
   };
@@ -1160,13 +1221,13 @@ function viewRegister() {
     S.joinCode ? h('div', {class:'note small'}, 'หลังลงทะเบียน รอผู้ดูแลระบบอนุมัติ (มีอีเมลแจ้ง) แล้วเข้าสู่ระบบและสแกน QR อีกครั้ง (รหัส ' + S.joinCode + ')') : null,
     h('div', {class:'grid2'},
       field('คำนำหน้า', h('select', {id:'rgPx'}, h('option', {value:''}, '— ไม่ระบุ —'), PREFIXES.map(x => h('option', {value:x}, x)))),
-      field('ชื่อ', h('input', {type:'text', id:'rgF', required:true, autocomplete:'given-name'})),
-      field('นามสกุล', h('input', {type:'text', id:'rgL', required:true, autocomplete:'family-name'})),
+      field('ชื่อ', h('input', {type:'text', id:'rgF', required:true, autocomplete:'given-name', value:gParts[0] || ''})),
+      field('นามสกุล', h('input', {type:'text', id:'rgL', required:true, autocomplete:'family-name', value:gParts.slice(1).join(' ')})),
       stu ? field('สถาบันการศึกษา / คณะ / ชั้นปี', h('input', {type:'text', id:'rgPos', placeholder:'เช่น มหาวิทยาลัยขอนแก่น คณะสาธารณสุขศาสตร์ ปี 4'}))
         : field('ตำแหน่ง', h('input', {type:'text', id:'rgPos', placeholder:'เช่น นักวิชาการสาธารณสุขชำนาญการ', autocomplete:'organization-title'})),
       h('label', {class:'f', style:'grid-column:1/-1'}, h('span', null, stu ? 'หน่วยงานที่ฝึกงาน' : 'หน่วยงาน'), unitSelect('rgA', '', onUnit), note),
       field('เบอร์โทร', h('input', {type:'tel', id:'rgT', required:true, inputmode:'tel', autocomplete:'tel', placeholder:'08x-xxx-xxxx'})),
-      field('อีเมล (ใช้รับรหัสเมื่อลืมรหัสผ่าน)', h('input', {type:'email', id:'rgE', required:true, autocomplete:'email', autocapitalize:'none'}))),
+      field(gr ? 'อีเมล Google (ใช้เข้าสู่ระบบด้วย Google)' : 'อีเมล (ใช้รับรหัสเมื่อลืมรหัสผ่าน · ถ้าใช้ Gmail จะเข้าสู่ระบบด้วย Google ได้)', h('input', {type:'email', id:'rgE', required:true, autocomplete:'email', autocapitalize:'none', value:gr ? gr.email : '', readonly:!!gr}))),
     h('div', {class:'divider'}),
     h('div', {class:'grid2'},
       h('label', {class:'f'}, h('span', null, 'ตั้งชื่อผู้ใช้'), h('input', {type:'text', id:'rgU', required:true, autocomplete:'username', autocapitalize:'none', spellcheck:'false', placeholder:'เช่น somchai.p หรือ phon01', pattern:'[A-Za-z0-9._\\-]{3,40}', title:'ภาษาอังกฤษ ตัวเลข . _ - ยาว 3–40 ตัว ไม่มีช่องว่าง'}),
@@ -1175,7 +1236,7 @@ function viewRegister() {
         h('ul', {class:'rules', id:'rgWr'}, h('li', {'data-r':'plen'}, 'อย่างน้อย 8 ตัวอักษร'), h('li', {'data-r':'pmix'}, 'แนะนำให้มีทั้งตัวอักษรและตัวเลข'), h('li', {'class':'info'}, 'กดรูปตาเพื่อดูรหัสที่พิมพ์ จดไว้ให้ดี ถ้าลืมกด "ลืมรหัสผ่าน" ได้')))),
     err,
     h('button', {class:'btn primary', type:'submit'}, 'ลงทะเบียน'),
-    h('button', {class:'linkbtn', type:'button', style:'align-self:center', onclick: () => authGo('login')}, '← มีบัญชีแล้ว กลับไปเข้าสู่ระบบ')));
+    h('button', {class:'linkbtn', type:'button', style:'align-self:center', onclick: () => authGo('login', {_gReg:null})}, '← มีบัญชีแล้ว กลับไปเข้าสู่ระบบ')));
 }
 function viewForgot() {
   const err = h('p', {class:'small', style:'color:var(--bad);min-height:1.2em', role:'alert'});
@@ -1189,7 +1250,7 @@ function viewForgot() {
   };
   const reset = async e => {
     e.preventDefault(); err.textContent = ''; const btn = e.currentTarget.querySelector('button[type=submit]'); btn.disabled = true;
-    try { const r = await API('resetPw', {username:st.username, code:$('#fpC').value, password:$('#fpN').value}); S._fp = null; await afterLogin(r); toast('ตั้งรหัสผ่านใหม่แล้ว', 3500); }
+    try { const r = await API('resetPw', {username:st.username, code:$('#fpC').value, password:$('#fpN').value, remember:S._remember !== false}); S._fp = null; await afterLogin(r); toast('ตั้งรหัสผ่านใหม่แล้ว', 3500); }
     catch (x) { err.textContent = errText(x); btn.disabled = false; }
   };
   const back = h('button', {class:'linkbtn', type:'button', style:'align-self:center', onclick: () => { S._fp = null; authGo('login'); }}, '← กลับไปเข้าสู่ระบบ');
@@ -1901,6 +1962,9 @@ function drawPresence() {
       h('span', {class:'muted'}, (p.unit && !p.me ? p.unit + ' · ' : '') + (TAB_LABEL[p.tab] || '')))) : null);
 }
 const docPath = d => d + '/' + S.cur.id;
+// ผู้อนุมัติลงนามได้แม้ปิดการตรวจแล้ว (ไม่ต้องขอแก้ไขบันทึก) · เฉพาะเจ้าหน้าที่ (ไม่ใช่นักศึกษา/รพ.สต./ผู้ชม)
+const AP_RE = /^ap(Name|Pos|Date|Ok|Note)?(\.|$)/;
+const canApprove = () => !!S.cur && !curMod() && !isViewer() && !isGuest() && !isStudent() && S.cur.insp.status !== 'cancelled' && S.cur.insp.status !== 'deleted';
 const locked = () => !!S.cur && (S.cur.insp.status === 'done' || isViewer() || (isStudent() && !STUDENT_TABS.includes(S.tab)));
 function setLocal(doc, path, v) { const o = S.cur[doc]; const parts = path.split('.'); let t = o; for (const p of parts.slice(0, -1)) t = t[p] = isObj(t[p]) ? {...t[p]} : {}; t[parts.at(-1)] = v; }
 function write(doc, path, v, delay) {
@@ -2638,22 +2702,50 @@ function tabFuInfo() {
     h('div', {class:'panel stack'}, h('h2', null, 'สถานที่ผลิต'),
       h('p', {class:'small'}, h('b', null, i.pname || ''), ' · ', i.lic || '', ' · ', i.addr || ''),
       h('div', {class:'grid2'}, field('ผู้ดำเนินกิจการ', bound('text', 'insp', 'operator', {id:'eOperator'})), field('อีเมลผู้ประกอบการ (สำหรับส่งผล)', bound('email', 'insp', 'email', {id:'eEmail'})))),
+    fuBasicPanel(),
     h('div', {class:'row'}, h('button', {class:'btn primary', onclick: () => { S.tab = 'fu'; drawTabs(); redrawTab(); window.scrollTo(0, 0); }}, 'ไปบันทึกผลการแก้ไข →')));
+}
+/* ---- ตรวจติดตาม: แก้ไขข้อมูลพื้นฐาน (ข้อ 4.1 แรงม้า/คนงาน และอื่น ๆ) · ค่าเดิมดึงจากการตรวจครั้งแรก ---- */
+async function fuBasicPrefill() {
+  const i = S.cur && S.cur.insp; if (!i || !isFu() || locked() || (S.cur.res.basic || {}).pre) return;
+  try { const r = await API('getInsp', {id:i.parent}); const sm = (r.doc.res && r.doc.res.sum) || {}, b = S.cur.res.basic || {};
+    if (!S.cur || S.cur.id !== i.no) return;
+    const set = (k, v) => { if (v != null && String(v).trim() && !String(b[k] || '').trim()) write('res', 'basic.' + k, String(v), 100); };
+    set('hp0', sm.hpNow || sm.hpOld); set('wk0', sm.wkNow || sm.wkOld); write('res', 'basic.pre', 1, 100); syncBound($('#tabBody')); } catch (e) { /* ไม่มีสิทธิ์ดูการตรวจครั้งแรก: กรอกค่าเดิมเอง */ }
+}
+function fuBasicPanel() {
+  const b = S.cur.res.basic || {}, body = h('div', {class:'stack', hidden:!b.on},
+    h('p', {class:'small muted'}, 'ค่าเดิมดึงจากข้อ 4.1 ของการตรวจครั้งแรกให้อัตโนมัติ (แก้ได้) · ค่าใหม่จะแสดงใน PDF การตรวจติดตาม และอัปเดตในฐานข้อมูลสถานที่เมื่อปิดการตรวจติดตาม'),
+    h('div', {class:'grid2'},
+      field('เครื่องจักร ตามการตรวจครั้งแรก (แรงม้า)', bound('text', 'res', 'basic.hp0', {id:'bHp0', inputmode:'decimal'})), field('แก้ไขเป็น (แรงม้า)', bound('text', 'res', 'basic.hp', {id:'bHp', inputmode:'decimal'})),
+      field('คนงาน ตามการตรวจครั้งแรก (คน)', bound('text', 'res', 'basic.wk0', {id:'bWk0', inputmode:'numeric'})), field('แก้ไขเป็น (คน)', bound('text', 'res', 'basic.wk', {id:'bWk', inputmode:'numeric'}))),
+    field('ข้อมูลพื้นฐานอื่นที่แก้ไข / เหตุผลการแก้ไข', bound('textarea', 'res', 'basic.note', {id:'bNote', rows:3, placeholder:'เช่น ผู้ประกอบการเพิ่มเครื่องบรรจุ 1 เครื่อง ขนาด 2 แรงม้า ตามหลักฐานที่ส่งมา'})));
+  const cbx = bound('checkbox', 'res', 'basic.on', {id:'bOn'});
+  cbx.addEventListener('change', () => { body.hidden = !cbx.checked; if (cbx.checked) fuBasicPrefill(); });
+  if (b.on) queueMicrotask(fuBasicPrefill);
+  return h('div', {class:'panel stack'}, h('h2', null, 'แก้ไขข้อมูลพื้นฐาน (ถ้ามี)'),
+    h('label', {class:'check'}, cbx, h('span', null, 'มีการแก้ไขข้อมูลพื้นฐานจากการตรวจครั้งแรก เช่น กำลังแรงม้า จำนวนคนงาน')), body);
+}
+function fuBasicRows(b) {
+  b = b || {}; const r = [];
+  if (String(b.hp || '').trim()) r.push(['กำลังแรงม้าของเครื่องจักร/อุปกรณ์ (แรงม้า)', b.hp0 || '-', b.hp]);
+  if (String(b.wk || '').trim()) r.push(['จำนวนคนงาน (คน)', b.wk0 || '-', b.wk]);
+  return r;
 }
 function tabFuItems() {
   const i = S.cur.insp, wrap = h('div', {class:'stack'});
   wrap.append(h('div', {class:'note small'}, i.fuMode === 'evidence' ? 'พิจารณาจากหลักฐาน: แนบรูปหรือเอกสารที่ผู้ประกอบการส่งมาในแต่ละข้อ' : 'ตรวจ ณ สถานที่ผลิต: ถ่ายรูปหลังแก้ไขแนบในแต่ละข้อ',
-      ' · ระบบคำนวณผลใหม่ตามเกณฑ์เดิม โดยข้อที่ "แก้ไขแล้ว" นับเป็น "ดี" (ตส.2) หรือ "ผ่าน" (ตส.3–5) ข้อที่ไม่ได้ติดตามใช้ผลเดิม'),
+      ' · ตส.2 ให้คะแนนใหม่ 2/1/0 ในแต่ละข้อ (ตส.3–5 เลือก แก้ไขแล้ว/ยังไม่แก้ไข) ระบบรวมคะแนนใหม่ตามเกณฑ์เดิม ข้อที่ไม่ได้ติดตามใช้คะแนนเดิม · ผลจะลงในช่อง "แก้ไขครั้งที่ ' + i.round + '" ของแบบตรวจฉบับแรก'),
     h('div', {id:'fuCalcBox'}));
   for (const x of i.items || []) wrap.append(fuItemCard(x));
   wrap.append(h('button', {class:'btn sm', style:'align-self:flex-start', type:'button', onclick: () => {
       if (locked()) return; const it = S.cur.res.it || {}; let n = 0;
-      for (const x of i.items || []) if (!(it[fik(x)] || {}).st) { write('res', 'it.' + fik(x) + '.st', 'fixed', 150); n++; }
-      if (!n) return toast('บันทึกครบทุกข้อแล้ว'); syncEditor(); }}, 'ให้ "แก้ไขแล้ว" ทุกข้อที่ยังไม่บันทึก'),
+      for (const x of i.items || []) if (!(it[fik(x)] || {}).st) { write('res', 'it.' + fik(x) + '.st', 'fixed', 150); if (x.form === 'ts2') write('res', 'it.' + fik(x) + '.s', 2, 150); n++; }
+      if (!n) return toast('บันทึกครบทุกข้อแล้ว'); syncEditor(); }}, 'ให้ "แก้ไขแล้ว / ดี (2)" ทุกข้อที่ยังไม่บันทึก'),
     h('div', {class:'panel stack'}, h('h2', null, 'ข้อบกพร่องรุนแรงที่พบเพิ่มขณะตรวจติดตาม (ถ้ามี)'),
       h('p', {class:'small muted'}, 'กรอกเฉพาะเมื่อพบความเสี่ยงใหม่ที่ทำให้อาหารไม่ปลอดภัย จะทำให้ผลการตรวจติดตาม "ไม่ผ่านเกณฑ์"'),
       bound('textarea', 'res', 'new9', {id:'fuNew9', rows:2})),
-    h('div', {class:'panel stack'}, h('h2', null, 'สรุปผลการตรวจติดตาม / หมายเหตุ'), bound('textarea', 'res', 'note', {id:'fuNote', rows:3})),
+    h('div', {class:'panel stack'}, h('h2', null, 'บันทึกเพิ่มเติมของเจ้าหน้าที่'), h('p', {class:'small muted'}, 'พิมพ์ข้อความบรรยายเพิ่มเติม (ถ้ามี) จะแสดงในข้อ ' + (5 + (S.cur.insp.round || 1)) + ' ของ ตส.1 และในบันทึกการตรวจติดตาม · ระบบไม่เติมข้อความให้อัตโนมัติ'), bound('textarea', 'res', 'note', {id:'fuNote', rows:3})),
     nextBtn(), missBar('fu'));
   queueMicrotask(refreshCalc);
   return wrap;
@@ -2668,7 +2760,10 @@ function fuItemCard(x) {
     h('div', {class:'fu-before'}, h('span', {class:'lbl'}, 'ผลครั้งก่อน: ' + s0Label(x) + (x.due0 ? ' · กำหนดแก้ไข ' + thDate(x.due0) : '')),
       x.c0 ? h('div', null, 'สิ่งที่พบ: ' + x.c0) : null, x.r0 ? h('div', null, 'คำแนะนำ: ' + x.r0) : null,
       (x.ph0 || []).length ? h('div', {class:'photos'}, x.ph0.map(id => photoThumb(id))) : null),
-    h('div', {class:'seg pf', role:'group', 'aria-label':'ผลการแก้ไข ' + fuLabel(x)},
+    x.form === 'ts2' ? h('div', {class:'stack', style:'gap:4px'}, h('span', {class:'fu-after-h'}, 'ให้คะแนนใหม่หลังแก้ไข (ได้ "ดี" = แก้ไขแล้ว)'),
+      h('div', {class:'seg', role:'group', 'aria-label':'คะแนนใหม่ ' + fuLabel(x)},
+        [[2,'ดี','2 คะแนน'],[1,'พอใช้','1 คะแนน'],[0,'ปรับปรุง','0 คะแนน']].map(([v, l, sub]) => h('button', {type:'button', 'data-v':String(v), 'data-s':String(v), 'aria-pressed':'false', onclick: () => setFuScore(x, v, card)}, l, h('small', null, sub)))))
+    : h('div', {class:'seg pf', role:'group', 'aria-label':'ผลการแก้ไข ' + fuLabel(x)},
       [['fixed','p','แก้ไขแล้ว'],['not','f','ยังไม่แก้ไข']].map(([v, dv, l]) => h('button', {type:'button', 'data-v':dv, 'data-st':v, 'aria-pressed':'false', onclick: () => setFu(x, v, card)}, l))),
     h('span', {class:'fu-after-h'}, 'สิ่งที่พบ / หลักฐานการแก้ไข'),
     bound('textarea', 'res', base + '.c', {id:'fc_' + key, rows:2}),
@@ -2686,10 +2781,19 @@ function setFu(x, v, card) {
   write('res', 'it.' + key + '.by', S.me && S.me.id || '', 150);
   syncFuItem(card); drawTabs();
 }
+function setFuScore(x, s, card) {
+  if (locked()) return;
+  const key = fik(x), v = (S.cur.res.it || {})[key] || {}, off = fuScore(x, v) === s && v.s === s;
+  write('res', 'it.' + key + '.s', off ? null : s, 150);
+  write('res', 'it.' + key + '.st', off ? null : s === 2 ? 'fixed' : 'not', 150);
+  write('res', 'it.' + key + '.by', S.me && S.me.id || '', 150);
+  syncFuItem(card); drawTabs();
+}
 function syncFuItem(card) {
   const key = card.dataset.fu, v = (S.cur.res.it || {})[key] || {};
   card.dataset.state = v.st === 'fixed' ? 'p' : v.st === 'not' ? 'f' : '';
-  for (const b of card.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', String(b.dataset.st === v.st));
+  const x = (S.cur.insp.items || []).find(y => fik(y) === key), sc = x ? fuScore(x, v) : null;
+  for (const b of card.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', String(b.dataset.s != null ? sc === +b.dataset.s : b.dataset.st === v.st));
   const p = card._parts; if (!p) return;
   const ph = v.ph || []; p.cntB.textContent = ph.length ? '(' + ph.length + ')' : '';
   const k2 = ph.join(','); if (p.photos.dataset.key !== k2) { p.photos.dataset.key = k2;
@@ -2746,7 +2850,7 @@ function sigPad(key, label, sub) {
     if (s && s.img) {
       box.replaceChildren(h('div', {class:'spread'}, h('b', null, label), h('span', {class:'small muted'}, 'ลงนามแล้ว ' + (s.at ? new Date(s.at).toLocaleString('th-TH', {dateStyle:'short', timeStyle:'short'}) : ''))),
         sub || null, h('div', {class:'sig-img'}, h('img', {src:s.img, alt:'ลายมือชื่อ ' + label})),
-        locked() ? null : h('button', {class:'btn sm', style:'align-self:flex-start', onclick: () => { write('sig', key, null, 50); draw(); }}, 'ลงนามใหม่'));
+        (key === 'ap' ? !canApprove() : locked()) ? null : h('button', {class:'btn sm', style:'align-self:flex-start', onclick: () => { write('sig', key, null, 50); draw(); }}, 'ลงนามใหม่'));
       return;
     }
     const cv = h('canvas', {'aria-label':'ช่องลงลายมือชื่อ ' + label});
@@ -2827,6 +2931,10 @@ async function finish() {
   try { await flushAll();
     clearTimeout(sumT); for (const [k, v] of Object.entries(upd)) queue('insp', k, v, 0);
     Object.assign(S.cur.insp, upd); await flushAll();
+    if (isFu()) { const b = S.cur.res.basic || {};   // แก้ไขข้อมูลพื้นฐาน: อัปเดตฐานข้อมูลสถานที่ (ไม่กระทบบันทึกการตรวจครั้งแรก)
+      if (b.on && i.pid && (String(b.hp || '').trim() || String(b.wk || '').trim())) {
+        const pl = {id:i.pid}; if (String(b.hp || '').trim()) pl.hp = b.hp; if (String(b.wk || '').trim()) pl.workers = b.wk;
+        API('savePlace', pl).then(() => toast('อัปเดตแรงม้า/คนงานในฐานข้อมูลสถานที่แล้ว')).catch(() => {}); } }
     syncEditor(); redrawTab(); showResult();
   } catch (e) { toast(errText(e)); }
 }
@@ -2930,16 +3038,26 @@ function tabSign() {
       h('p', {class:'small muted'}, 'ผู้ตรวจทุกคนต้องลงนาม เพิ่มหรือแก้ชื่อผู้ตรวจได้ที่แท็บ "ข้อมูลการตรวจ"'),
       insList().length ? insList().map(x => sigPad('i' + x.k, x.name, (x.pos || x.org) ? h('span', {class:'small muted'}, [x.pos, x.org].filter(Boolean).join(' · ')) : null)) :
         h('p', {class:'note warn small'}, 'ยังไม่มีชื่อผู้ตรวจ กรอกที่แท็บ "ข้อมูลการตรวจ" ข้อ 1.1')),
-    i.type === 'LC' ? h('div', {class:'panel stack'}, h('h2', null, 'ผู้อนุมัติผลการตรวจ (กรณีตรวจประกอบการพิจารณาอนุญาต)'),
-      h('div', {class:'grid2'}, field('ชื่อ – สกุล', bound('text', 'sig', 'apName', {id:'gApN'})), field('วันที่', bound('date', 'sig', 'apDate', {id:'gApD'}))),
-      sigPad('ap', 'ลายมือชื่อผู้อนุมัติ (ลงภายหลังได้)')) : null);
+    null);
+  const apPanel = i.type === 'LC' || isFu() ? h('fieldset', {disabled: !canApprove()}, h('div', {class:'panel stack', id:'apPanel'}, h('h2', null, isFu() ? 'ผู้อนุมัติผลการตรวจติดตาม' : 'ผู้อนุมัติผลการตรวจ (กรณีตรวจประกอบการพิจารณาอนุญาต)'),
+      h('p', {class:'small muted'}, 'ลงนามได้ทั้งก่อนและหลังปิดการตรวจ ไม่ต้องขอแก้ไขบันทึก · ลงนามแล้วกด "บันทึกการอนุมัติและบันทึก PDF" ระบบจะสร้าง PDF ฉบับที่มีลายมือชื่อผู้อนุมัติแทนไฟล์เดิม · ถ้าเว้นว่าง ใน PDF จะมีช่องว่างให้ลงนามด้วยปากกา'),
+      isFu() ? field('ผลการพิจารณา', bound('select', 'sig', 'apOk', {id:'gApO', options:[['','— เลือกผลการพิจารณา —'],['ok','อนุมัติผลการตรวจติดตาม'],['no','ไม่อนุมัติ/ให้ดำเนินการเพิ่มเติม']]})) : null,
+      isFu() ? field('ความเห็นผู้อนุมัติ (ถ้ามี)', bound('text', 'sig', 'apNote', {id:'gApT'})) : null,
+      h('div', {class:'grid3'}, field('ชื่อ – สกุล', bound('text', 'sig', 'apName', {id:'gApN'})), field('ตำแหน่ง', bound('text', 'sig', 'apPos', {id:'gApP'})), field('วันที่', bound('date', 'sig', 'apDate', {id:'gApD'}))),
+      sigPad('ap', isFu() ? 'ลายมือชื่อผู้อนุมัติ' : 'ลายมือชื่อผู้อนุมัติ (ลงภายหลังได้)'),
+      i.status === 'done' && canApprove() ? h('button', {class:'btn primary', type:'button', style:'align-self:flex-start', onclick: async e => {
+        const s = S.cur.sig || {}; if (!(s.ap && s.ap.img)) return toast('ผู้อนุมัติยังไม่ได้ลงนาม');
+        if (!s.apDate) write('sig', 'apDate', todayISO(), 10);
+        const btn = e.currentTarget; try { await flushAll(); } catch (er) { return toast(er.message, 5000); }
+        if (await makePdf(btn, {download:false})) toast('บันทึกการอนุมัติและ PDF ฉบับใหม่แล้ว');
+      }}, 'บันทึกการอนุมัติและบันทึก PDF') : null)) : null;
   const ed = i.edition || 1, lastV = (i.versions || []).slice(-1)[0] || {}, am = i.amendOpen || {};
   const amPanel = ed > 1 ? h('fieldset', {disabled: locked()}, h('div', {class:'panel stack'}, h('h2', null, 'ผู้แก้ไขบันทึกลงนาม (ฉบับที่ ' + ed + ')'),
     h('p', {class:'small'}, h('b', null, 'เหตุผลการแก้ไข: '), am.reason || lastV.reason || '', h('br'), h('span', {class:'muted'}, 'ขอแก้ไขโดย ' + (am.by || lastV.by || '') + ' เมื่อ ' + fmtDT(am.at || lastV.at))),
     h('p', {class:'small muted'}, 'ผู้ตรวจและผู้ประกอบการไม่ต้องลงนามใหม่ ผู้แก้ไขลงนามรับรองการแก้ไขที่นี่ ลายมือชื่อ เหตุผล และวันที่แก้ไขจะแสดงใน PDF'),
     sigPad('am' + ed, 'ลายมือชื่อผู้แก้ไข · ' + (am.by || lastV.by || '')))) : null;
-  return h('div', {class:'stack'}, fs, amPanel,
-    h('div', {class:'panel stack'}, h('h2', null, 'ปิดการตรวจ'), h('div', {id:'finishBox'}, finishView())),
+  return h('div', {class:'stack'}, fs, i.status === 'done' ? null : apPanel, amPanel,
+    h('div', {class:'panel stack'}, h('h2', null, 'ปิดการตรวจ'), h('div', {id:'finishBox'}, finishView())), i.status === 'done' ? apPanel : null,
     sendPanel());
 }
 function contactLines(i) {
@@ -3027,6 +3145,21 @@ function sendPanel() {
 const loadScript = src => new Promise((res, rej) => { if (document.querySelector('script[src="' + src + '"]')) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.append(s); });
 const H2I = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';
 const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const PDFLIB = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+// ตรวจติดตาม: นำ PDF ของการตรวจครั้งแรก (ฉบับล่าสุด) มาไว้ด้านหน้า แล้วต่อด้วยบันทึกการตรวจติดตาม เป็นไฟล์เดียว
+async function mergeParentPdf(blob) {
+  const i = S.cur.insp; let pid = '';
+  try { pid = ((await API('getInsp', {id:i.parent})).doc.insp || {}).pdfId || ''; } catch (e) { return {blob, merged:false, why:'เปิดการตรวจครั้งแรกไม่ได้'}; }
+  if (!pid) return {blob, merged:false, why:'การตรวจครั้งแรกยังไม่มีไฟล์ PDF'};
+  const f = (await API('files', {ids:[pid]}))[pid]; if (!f || !f.data) return {blob, merged:false, why:'ดึง PDF การตรวจครั้งแรกไม่ได้'};
+  await loadScript(PDFLIB);
+  const {PDFDocument} = window.PDFLib, out = await PDFDocument.create();
+  const bin = s => Uint8Array.from(atob(s.slice(s.indexOf(',') + 1)), c => c.charCodeAt(0));
+  for (const src of [await PDFDocument.load(bin(f.data)), await PDFDocument.load(new Uint8Array(await blob.arrayBuffer()))])
+    (await out.copyPages(src, src.getPageIndices())).forEach(pg => out.addPage(pg));
+  out.setTitle(i.no + ' ตรวจติดตามครั้งที่ ' + i.round + ' (รวมการตรวจครั้งแรก ' + i.parent + ')');
+  return {blob:new Blob([await out.save()], {type:'application/pdf'}), merged:true};
+}
 const XLSX_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 const cb = on => h('span', {class:'cb' + (on ? ' on' : '')});
 const fill = (v, min) => h('span', {class:'fill', style: min ? 'display:inline-block;min-width:' + min + 'px' : null}, v || ' ');
@@ -3052,7 +3185,39 @@ function edTable(i) {
           h('td', {class:'c'}, s && s.img ? [h('img', {src:s.img, alt:'', style:'height:40px;max-width:100%;object-fit:contain;display:block;margin:0 auto'}), h('div', {class:'small'}, 'ลงนาม ' + fmtDT(s.at))] : '')); }))));
 }
 function opSignedEd(i, s) { if (!s || !s.at) return 0; return 1 + (i.versions || []).filter(v => v.at < s.at).length; }
+/* ผลตรวจติดตามลงในแบบตรวจฉบับแรก: คะแนนรายข้อของแต่ละครั้ง (ข้อที่ให้คะแนนใหม่ = สีแดง, ข้อที่ไม่ได้แก้ = คะแนนเดิมสีดำ) + รวมคะแนนใหม่ */
+async function loadFuOverlay(pdoc, curFu) {
+  const P = pdoc.insp, pres = pdoc.res || {}, ov = {};
+  const fus = (P.followups || []).filter(f => f.status !== 'cancelled').sort((a, b) => a.round - b.round);
+  let prev = {};
+  for (const f of activeForms(P)) { prev[f] = {}; for (const it of ITEMS[f]) { if (itemOff(P, f, it.k)) continue; const v = itemVal(pres, f, it.k); if (v.s != null) prev[f][kk(it.k)] = v.s; } }
+  for (const f of fus) {
+    let d = curFu && curFu.insp.no === f.no ? curFu : null;
+    if (!d) { if (f.status !== 'done') continue; try { d = (await API('getInsp', {id:f.no})).doc; } catch (e) { continue; } }
+    const sc = JSON.parse(JSON.stringify(prev)), ch = {}, it = (d.res && d.res.it) || {};
+    for (const x of d.insp.items || []) { const ns = fuScore(x, it[fik(x)]); if (ns == null) continue; sc[x.form] = sc[x.form] || {}; sc[x.form][kk(x.k)] = ns; (ch[x.form] = ch[x.form] || {})[kk(x.k)] = true; }
+    const synth = {sum:{}}; for (const [fm, m] of Object.entries(sc)) { synth[fm] = {}; for (const [k, s] of Object.entries(m)) synth[fm][k] = {s}; }
+    ov[f.round] = {scores:sc, changed:ch, date:d.insp.date, c:calc(P, synth), result:d.insp.final || d.insp.result || fuCalc(d.insp, d.res).result, ins:d.insp.ins || {}, sig:d.sig || {}, note:(d.res && d.res.note) || ''};
+    prev = sc;
+  }
+  return ov;
+}
+function fuCell(form, k, n) {
+  const o = S._fuOv && S._fuOv[n]; if (!o) return '';
+  const s = ((o.scores[form] || {})[kk(k)]); if (s == null || s === 'na') return '';
+  const red = !!((o.changed[form] || {})[kk(k)]);
+  return h('span', {style:red ? 'color:#C62828;font-weight:700' : 'color:#000'}, form === 'ts2' ? String(s) : S_LABEL[s] || '');
+}
 function buildFuReport() {
+  if (S._fuCombo) {   // แบบตรวจฉบับแรก (ลงคะแนนตรวจติดตามแล้ว) + บันทึกการตรวจติดตาม 1 หน้า (ไม่แนบรูป)
+    const fuCur = S.cur, combo = S._fuCombo; let parts;
+    S.cur = combo.cur; S._fuOv = combo.ov;
+    try { parts = buildReport(); } finally { S.cur = fuCur; S._fuOv = null; }
+    return parts.concat(buildFuRecord());
+  }
+  return buildFuRecord();
+}
+function buildFuRecord() {
   const i = S.cur.insp, res = S.cur.res || {}, sig = S.cur.sig || {}, fc = fuCalc(), it = res.it || {}, parts = [];
   const r = i.status === 'done' ? i.final : fc.result;
   const stTxt = st => st === 'fixed' ? 'แก้ไขแล้ว' : st === 'not' ? 'ยังไม่แก้ไข' : '';
@@ -3065,32 +3230,38 @@ function buildFuReport() {
     h('p', null, 'ชื่อสถานที่ผลิต/ผู้รับอนุญาต ', fill(i.pname, 240), '  เลขที่ใบอนุญาต ', fill(i.lic, 120)),
     h('p', null, 'สถานที่ตั้ง ', fill(i.addr, 360)),
     h('p', null, 'ผู้ตรวจติดตาม ', fill(insList().map(x => x.name + (x.pos ? ' (' + x.pos + ')' : '')).join(', '), 360)),
-    h('table', null, h('thead', null, h('tr', null, h('th', null, 'ลำดับ'), h('th', null, 'ข้อ'), h('th', {style:'width:33%'}, 'ข้อบกพร่องเดิม / คำแนะนำ'), h('th', null, 'ผลเดิม'), h('th', null, 'ผลการแก้ไข'), h('th', {style:'width:27%'}, 'สิ่งที่พบ/หลักฐาน'))),
+    h('table', null, h('thead', null, h('tr', null, h('th', null, 'ลำดับ'), h('th', null, 'ข้อ'), h('th', {style:'width:33%'}, 'ข้อบกพร่องเดิม / คำแนะนำ'), h('th', null, 'ผลเดิม'), h('th', null, 'ผลหลังแก้ไข'), h('th', {style:'width:27%'}, 'สิ่งที่พบ/หลักฐาน'))),
       h('tbody', null, (i.items || []).map((x, n) => { const v = it[fik(x)] || {};
         return h('tr', {class:'avoid'}, h('td', {class:'c'}, n + 1), h('td', {class:'c'}, fuLabel(x) + (x.m ? ' (M)' : '')),
-          h('td', null, x.c0 || x.t, x.r0 ? h('div', {class:'small'}, 'คำแนะนำ: ' + x.r0) : null), h('td', {class:'c'}, s0Label(x)),
-          h('td', {class:'c', style: v.st === 'not' ? 'color:#B3261E;font-weight:700' : 'font-weight:700'}, stTxt(v.st)),
-          h('td', {class:'small'}, [v.c, (v.ph || []).length ? '(ภาพ ' + v.ph.length + ')' : ''].filter(Boolean).join(' ')));
+          S._fuCombo && (x.c0 || x.r0) ? h('td', {class:'small'}, [x.c0, x.r0].filter(Boolean).join(' · '))
+            : h('td', null, x.c0 || x.t, x.r0 ? h('div', {class:'small'}, 'คำแนะนำ: ' + x.r0) : null), h('td', {class:'c'}, s0Label(x)),
+          h('td', {class:'c', style:'color:#C62828;font-weight:700'}, x.form === 'ts2' && fuScore(x, v) != null ? S_LABEL[fuScore(x, v)] : stTxt(v.st)),
+          h('td', {class:'small'}, [v.c, (v.ph || []).length ? '(หลักฐาน ' + v.ph.length + ' ไฟล์)' : ''].filter(Boolean).join(' ')));
       }))),
     res.new9 ? h('p', null, h('b', null, 'ข้อบกพร่องรุนแรงที่พบเพิ่ม: '), res.new9) : null,
+    (res.basic || {}).on && (fuBasicRows(res.basic).length || String(res.basic.note || '').trim()) ? h('div', {class:'avoid'},
+      h('h2', null, 'การแก้ไขข้อมูลพื้นฐาน (แก้ไขข้อ 4.1 ของการตรวจเลขที่ ' + i.parent + ')'),
+      fuBasicRows(res.basic).length ? h('table', null, h('thead', null, h('tr', null, h('th', null, 'รายการ'), h('th', null, 'ตามการตรวจครั้งแรก'), h('th', null, 'แก้ไขเป็น'))),
+        h('tbody', null, fuBasicRows(res.basic).map(r => h('tr', null, h('td', null, r[0]), h('td', {class:'c'}, r[1]), h('td', {class:'c', style:'font-weight:700'}, r[2]))))) : null,
+      String(res.basic.note || '').trim() ? h('p', {class:'ind'}, 'รายละเอียด/เหตุผล: ' + res.basic.note) : null) : null,
     h('h2', null, 'สรุปผลการตรวจติดตาม'),
     h('p', {class:'ind'}, 'แก้ไขแล้ว ' + fc.fixed + ' ข้อ · ยังไม่แก้ไข ' + fc.not + ' ข้อ · จากทั้งหมด ' + fc.items.length + ' ข้อ'),
-    h('p', {class:'ind'}, 'คะแนน ตส.2 หลังแก้ไข ' + fc.c.got + '/' + fc.c.full + ' (ร้อยละ ' + fmtPct(fc.c.pct) + ') · ' + (fc.c.serious.length ? 'ยังพบข้อบกพร่องรุนแรง ' + fc.c.serious.length + ' ข้อ' : 'ไม่พบข้อบกพร่องรุนแรง')),
-    h('table', null, h('thead', null, h('tr', null, h('th', null, 'ข้อกำหนดพื้นฐาน'), h('th', null, 'คะแนนเต็ม'), h('th', null, 'คะแนนหลังแก้ไข'), h('th', null, 'ร้อยละ'))),
+    h('p', {class:'ind'}, (cc => 'คะแนน ตส.2 หลังแก้ไข ' + cc.got + '/' + cc.full + ' (ร้อยละ ' + fmtPct(cc.pct) + ') · ')((S._fuCombo && S._fuCombo.ov[i.round] || fc).c) + (fc.c.serious.length ? 'ยังพบข้อบกพร่องรุนแรง ' + fc.c.serious.length + ' ข้อ' : 'ไม่พบข้อบกพร่องรุนแรง')),
+    S._fuCombo ? h('p', {class:'ind small'}, 'คะแนนรายข้อและคะแนนรวมรายหมวดหลังแก้ไข ดูช่อง "แก้ไขครั้งที่ ' + i.round + '" ใน ตส.2 ของแบบตรวจฉบับแรก (ตัวเลขสีแดง = ข้อที่ให้คะแนนใหม่)') : h('table', null, h('thead', null, h('tr', null, h('th', null, 'ข้อกำหนดพื้นฐาน'), h('th', null, 'คะแนนเต็ม'), h('th', null, 'คะแนนหลังแก้ไข'), h('th', null, 'ร้อยละ'))),
       h('tbody', null, fc.c.cats.map(x => h('tr', null, h('td', null, 'หมวดที่ ' + x.n + ' ' + x.title), h('td', {class:'c'}, x.full), h('td', {class:'c'}, x.got), h('td', {class:'c', style: x.full && x.pct < 60 ? 'color:#B3261E;font-weight:700' : null}, fmtPct(x.pct)))))),
     h('p', {class:'ind'}, cb(r === 'pass'), 'ผ่านเกณฑ์    ', cb(r === 'fail'), 'ไม่ผ่านเกณฑ์' + (r === 'fail' && i.round >= 2 ? ' (ตรวจติดตามครบ 2 ครั้ง ควรพิจารณาดำเนินการตามกฎหมาย)' : '')),
     res.note ? h('p', {class:'ind'}, 'หมายเหตุ: ' + res.note) : null,
-    contactBox(i),
+    S._fuCombo ? null : contactBox(i),
     edTable(i),
     sig.op && sig.op.img || i.fuMode !== 'evidence' ? h('div', {class:'sigs two avoid', style:'margin-top:12px'}, sigBox(sig.op, sig.opName, (sig.opRole || 'ผู้ขออนุญาต/ผู้รับอนุญาต/ผู้แทน') + (opEd && opEd < (i.edition || 1) ? ' · ลงนามในฉบับที่ ' + opEd : ''))) : null,
-    h('div', {class:'sigs avoid'}, insList().map(x => sigBox(sig['i' + x.k], x.name, 'ผู้ตรวจติดตาม' + (x.pos ? ' · ' + x.pos : '') + (x.org ? ' · ' + x.org : ''))))));
+    h('div', {class:'sigs avoid'}, insList().map(x => sigBox(sig['i' + x.k], x.name, 'ผู้ตรวจติดตาม' + (x.pos ? ' · ' + x.pos : '') + (x.org ? ' · ' + x.org : '')))),
+    h('div', {class:'avoid', style:'margin-top:10px'}, h('p', {class:'ind'}, cb(!!(sig.ap && sig.ap.img) && sig.apOk !== 'no'), 'อนุมัติผลการตรวจติดตาม    ', cb(sig.apOk === 'no'), 'ไม่อนุมัติ/ให้ดำเนินการเพิ่มเติม ', fill(sig.apNote || '', 220)),
+      h('div', {class:'sigs two'}, sigBox(sig.ap, sig.apName, 'ผู้อนุมัติ' + (sig.apPos ? ' · ' + sig.apPos : '') + (sig.apDate ? ' · ' + thDate(sig.apDate) : ''))))));
   const pics = [];
   for (const x of i.items || []) { const v = it[fik(x)] || {};
     for (const id of x.ph0 || []) pics.push({id, cap:fuLabel(x) + ' · ก่อนแก้ไข'});
     for (const id of v.ph || []) pics.push({id, cap:fuLabel(x) + ' · หลังแก้ไข' + (v.c ? ' – ' + v.c : '')}); }
-  for (let n = 0; n < pics.length; n += 6) parts.push(h('div', {class:'rpt'}, rptHdr(i, 'ภาพก่อน–หลังแก้ไข'), n === 0 ? h('h1', null, 'ภาพประกอบการตรวจติดตาม (ก่อน–หลังแก้ไข)') : null,
-    h('div', {class:'photos'}, pics.slice(n, n + 6).map(p => h('figure', null, h('img', {src:(S.fileCache[p.id] || {}).data || '', alt:''}), h('figcaption', null, p.cap))))));
-  return parts;
+  return parts;   // บันทึกการตรวจติดตามไม่แนบรูป (รูปหลักฐานเก็บไว้ในระบบ/โฟลเดอร์ Drive)
 }
 function buildReport() {
   if (isFu()) return buildFuReport();
@@ -3153,8 +3324,7 @@ function buildReport() {
     h('p', {class:'ind'}, '5.4 การเปลี่ยนแปลงรายการเครื่องมือเครื่องจักร/แบบแปลนแผนผัง/จำนวนแรงม้า ', fill(sum.changes, 120)),
     h('p', {class:'ind'}, '5.5 อื่น ๆ ได้แก่ ', fill(sum.other, 240)),
     ...[1, 2].map(n => { const f = fu['f' + n] || {}; return h('p', null, h('b', null, (n + 5) + '. ผลการแก้ไขครั้งที่ ' + n + ' (follow-up audit) '), 'วันที่ ', fill(f.date ? thDate(f.date, true) : '', 90), '  ', cb(f.result === 'pass'), 'ผ่านเกณฑ์  ', cb(f.result === 'fail'), 'ไม่ผ่านเกณฑ์  ผู้ตรวจ ', fill(f.by, 100),
-      f.ref ? h('span', {style:'display:block;padding-left:18px'}, (f.mode === 'evidence' ? 'พิจารณาจากหลักฐาน' : 'ตรวจ ณ สถานที่ผลิต') + ' · แก้ไขแล้ว ' + (f.fixed || 0) + '/' + (f.total || 0) + ' ข้อ · รายละเอียดตามบันทึกเลขที่ ' + f.ref) : null,
-      f.note ? h('span', {style:'display:block;padding-left:18px'}, f.note) : null); }),
+      fuRoundBlock(n, f)); }),
     i.fuWarn ? h('p', {class:'ind', style:'font-weight:700'}, 'ตรวจติดตามครบ 2 ครั้งแล้วยังไม่ผ่านเกณฑ์ ควรพิจารณาดำเนินการตามกฎหมาย') : null,
     contactBox(i),
     edTable(i),
@@ -3162,12 +3332,15 @@ function buildReport() {
       h('p', null, 'ในการที่พนักงานเจ้าหน้าที่หรือผู้ตรวจประเมินสถานที่ผลิตอาหาร มาตรวจสถานที่ครั้งนี้ มิได้ทำให้ทรัพย์สินของผู้ขออนุญาต/ผู้รับอนุญาตสูญหาย หรือเสียหายแต่ประการใด อ่านให้ฟังแล้วรับรองว่าถูกต้อง จึงลงนามรับรองไว้ต่อเจ้าหน้าที่ท้ายบันทึก'),
       h('div', {class:'sigs two'}, sigBox(sig.op, sig.opName, (sig.opRole || 'ผู้ขออนุญาต/ผู้รับอนุญาต/ผู้แทน') + (opSignedEd(i, sig.op) && opSignedEd(i, sig.op) < (i.edition || 1) ? ' · ลงนามในฉบับที่ ' + opSignedEd(i, sig.op) : '')))),
     h('div', {class:'sigs avoid'}, insList().map(x => sigBox(sig['i' + x.k], x.name, 'พนักงานเจ้าหน้าที่/ผู้ตรวจประเมิน' + (x.pos ? ' · ' + x.pos : '') + (x.org ? ' · ' + x.org : '')))),
-    i.type === 'LC' ? h('div', {class:'sigs two avoid'}, sigBox(sig.ap, sig.apName, 'ผู้อนุมัติผลการตรวจ' + (sig.apDate ? ' · ' + thDate(sig.apDate) : ''))) : null);
+    i.type === 'LC' ? h('div', {class:'sigs two avoid'}, sigBox(sig.ap, sig.apName, 'ผู้อนุมัติผลการตรวจ' + (sig.apPos ? ' · ' + sig.apPos : '') + (sig.apDate ? ' · ' + thDate(sig.apDate) : ''))) : null);
   parts.push(p1);
   /* ---- ตส.2 ---- */
   const fuDates = h('p', null, 'วันที่ตรวจประเมิน ', fill(thDate(i.date, true)), '  วันที่ตรวจติดตาม ครั้งที่ 1 ', fill(fu.f1 && fu.f1.date ? thDate(fu.f1.date) : '', 70), '  ครั้งที่ 2 ', fill(fu.f2 && fu.f2.date ? thDate(fu.f2.date) : '', 70));
   const mark = (on) => on ? '✓' : '';
-  const fuMark = (v, n) => v['f' + n] ? 'แก้ไขแล้ว' : '';
+  const fuMark = (v, n, f, k) => S._fuOv ? fuCell(f, k, n) : (v['f' + n] ? 'แก้ไขแล้ว' : '');
+  const totCell = (got, full, pct) => h('span', null, 'คะแนนที่ได้ ' + got + '/' + full, h('br'), 'ร้อยละ ' + fmtPct(pct));
+  const fuCellTot = (got, full, pct) => h('span', null, got + '/' + full, h('br'), fmtPct(pct) + '%');
+  const fuTot = (n, catN) => { const o = S._fuOv && S._fuOv[n]; if (!o) return ''; const x = o.c.cats.find(y => y.n === catN); return x ? fuCellTot(x.got, x.full, x.pct) : ''; };
   const note = v => [noteOf(v), v.ph && v.ph.length ? '(ภาพ ' + v.ph.length + ')' : ''].filter(Boolean).join(' ');
   const ts2 = h('div', {class:'rpt'}, rptHdr(i, 'ตส.2 (63)'),
     h('h1', null, 'บันทึกการตรวจประเมินสถานที่ผลิตอาหาร ตามข้อกำหนดพื้นฐาน'),
@@ -3178,9 +3351,14 @@ function buildReport() {
         ...cat.rows.map(r => { if (!r.k) return h('tr', null, h('td', {colspan:7}, r.h));
           const v = itemOff(i, 'ts2', r.k) ? {s:'new'} : itemVal(res, 'ts2', r.k);
           return h('tr', null, h('td', null, r.k + ' ' + r.t + (r.m ? ' (M)' : '')),
-            v.s === 'new' ? h('td', {class:'c small', colspan:3}, 'ไม่ประเมิน (รายใหม่) · รับรองตามบันทึกคำให้การ') : v.s === 'na' ? h('td', {class:'c', colspan:3}, 'ไม่เกี่ยวข้อง') : [h('td', {class:'c'}, mark(v.s === 2)), h('td', {class:'c'}, mark(v.s === 1)), h('td', {class:'c'}, mark(v.s === 0))],
-            h('td', {class:'c'}, fuMark(v, 1)), h('td', {class:'c'}, fuMark(v, 2)), h('td', {class:'small'}, note(v))); }),
-        h('tr', {class:'tot'}, h('td', null, 'หมวดที่ ' + cat.n + ' คะแนนเต็ม ' + cx.full + ' · คะแนนที่ได้ ' + cx.got + ' · ร้อยละ ' + fmtPct(cx.pct)), h('td', {colspan:6}, ''))]; }))));
+            v.s === 'new' ? h('td', {class:'c small', colspan:5}, 'ไม่ประเมิน (รายใหม่) · รับรองตามบันทึกคำให้การ') : v.s === 'na' ? h('td', {class:'c', colspan:5}, 'ไม่เกี่ยวข้อง')
+              : [h('td', {class:'c'}, mark(v.s === 2)), h('td', {class:'c'}, mark(v.s === 1)), h('td', {class:'c'}, mark(v.s === 0)), h('td', {class:'c'}, fuMark(v, 1, 'ts2', r.k)), h('td', {class:'c'}, fuMark(v, 2, 'ts2', r.k))],
+            h('td', {class:'small'}, note(v))); }),
+        h('tr', {class:'tot'}, h('td', null, 'หมวดที่ ' + cat.n + ' คะแนนเต็ม ' + cx.full), h('td', {class:'c', colspan:3}, totCell(cx.got, cx.full, cx.pct)),
+          h('td', {class:'c small'}, fuTot(1, cat.n)), h('td', {class:'c small'}, fuTot(2, cat.n)), h('td', null, ''))]; }),
+        h('tr', {class:'tot'}, h('td', null, 'รวมทุกหมวด คะแนนเต็ม ' + c.full), h('td', {class:'c', colspan:3}, totCell(c.got, c.full, c.pct)),
+          ...[1, 2].map(n => { const o = S._fuOv && S._fuOv[n]; return h('td', {class:'c small'}, o ? fuCellTot(o.c.got, o.c.full, o.c.pct) : ''); }), h('td', null, '')))),
+    S._fuOv ? h('p', {class:'small'}, 'ช่อง "แก้ไขครั้งที่ 1/2" แสดงคะแนนหลังตรวจติดตาม: ', h('span', {style:'color:#C62828;font-weight:700'}, 'สีแดง = ข้อที่ให้คะแนนใหม่'), ' · สีดำ = คะแนนเดิม (ไม่ได้แก้ไข) · แถวรวม = คะแนนรวมใหม่ (ได้/เต็ม และร้อยละ)') : null);
   parts.push(ts2);
   if (isNewLic(i)) parts.push(buildStmPage(i));
   /* ---- specific forms ---- */
@@ -3194,8 +3372,8 @@ function buildReport() {
         h('tbody', null, FORMS[f].map(r => { if (!r.k) return h('tr', {class:'sec'}, h('td', {colspan:6}, r.h));
           const off = itemOff(i, f, r.k); const v = off ? {s:'na'} : itemVal(res, f, r.k);
           return h('tr', null, h('td', null, r.k + ' ' + r.t, r.d && r.d.length ? h('div', {class:'small'}, r.d.join(' ')) : null),
-            v.s === 'na' ? h('td', {class:'c', colspan:2}, 'ไม่เกี่ยวข้อง') : [h('td', {class:'c'}, mark(v.s === 'p')), h('td', {class:'c'}, mark(v.s === 'f'))],
-            h('td', {class:'c'}, fuMark(v, 1)), h('td', {class:'c'}, fuMark(v, 2)), h('td', {class:'small'}, note(v))); })))));
+            v.s === 'na' ? h('td', {class:'c', colspan:4}, 'ไม่เกี่ยวข้อง') : [h('td', {class:'c'}, mark(v.s === 'p')), h('td', {class:'c'}, mark(v.s === 'f')), h('td', {class:'c'}, fuMark(v, 1, f, r.k)), h('td', {class:'c'}, fuMark(v, 2, f, r.k))],
+            h('td', {class:'small'}, note(v))); })))));
   }
   /* ---- attachment: recommendations ---- */
   const lead = insList()[0] || {};
@@ -3218,6 +3396,18 @@ function buildReport() {
   for (let n = 0; n < pics.length; n += 6) parts.push(h('div', {class:'rpt'}, rptHdr(i, 'ภาพประกอบการตรวจ'), n === 0 ? h('h1', null, 'ภาพประกอบการตรวจประเมิน') : null,
     h('div', {class:'photos'}, pics.slice(n, n + 6).map(p => h('figure', null, h('img', {src:(S.fileCache[p.id] || {}).data || '', alt:''}), h('figcaption', null, p.cap))))));
   return parts;
+}
+// ข้อ 6/7 ของ ตส.1: คะแนนรายหมวดหลังแก้ไข + บันทึกของเจ้าหน้าที่ + ลายมือชื่อผู้ตรวจติดตาม (ผู้พิจารณาคะแนนใหม่)
+function fuRoundBlock(n, f) {
+  const o = S._fuOv && S._fuOv[n]; if (!o && !f.ref) return null;
+  const note = o ? o.note : (f.note || '');
+  const ins = o ? Object.keys(o.ins).sort((a, b) => a - b).map(k => ({k, ...o.ins[k]})).filter(x => String(x.name || '').trim()) : [];
+  return h('div', {class:'avoid', style:'padding-left:18px;margin:2px 0 8px'},
+    o ? h('table', {class:'small', style:'margin:4px 0'}, h('thead', null, h('tr', null, h('th', null, 'ข้อกำหนดพื้นฐาน (ตส.2) หลังแก้ไข'), h('th', null, 'คะแนนเต็ม'), h('th', null, 'คะแนนที่ได้'), h('th', null, 'ร้อยละ'))),
+      h('tbody', null, o.c.cats.filter(x => x.full).map(x => h('tr', null, h('td', null, 'หมวดที่ ' + x.n + ' ' + x.title), h('td', {class:'c'}, x.full), h('td', {class:'c'}, x.got), h('td', {class:'c', style:x.pct < 60 ? 'color:#B3261E;font-weight:700' : null}, fmtPct(x.pct)))),
+        h('tr', {class:'tot'}, h('td', null, 'รวม'), h('td', {class:'c'}, o.c.full), h('td', {class:'c'}, o.c.got), h('td', {class:'c'}, fmtPct(o.c.pct))))) : null,
+    h('p', {style:'margin:2px 0'}, 'บันทึกเพิ่มเติม ', note ? h('span', null, note) : fill('', 520)),
+    ins.length ? h('div', {class:'sigs'}, ins.map(x => sigBox(o.sig['i' + x.k], x.name, 'ผู้ตรวจติดตาม/ผู้พิจารณาคะแนน' + (x.pos ? ' · ' + x.pos : '')))) : null);
 }
 function sigBox(s, name, role) {
   return h('div', {class:'sigbox'}, h('div', {class:'img'}, s && s.img ? h('img', {src:s.img, alt:''}) : null),
@@ -3243,8 +3433,21 @@ async function makePdf(btn, opts = {download:true}) {
     await flushAll();
     await Promise.all([loadScript(H2I), loadScript(JSPDF)]);
     await Promise.all([document.fonts.load("13px RptSarabun", 'ก'), document.fonts.load("700 13px RptSarabun", 'ก')]).catch(() => {});
+    S._fuCombo = null; S._fuOv = null;
+    if (isFu()) { btn.textContent = 'กำลังเตรียมแบบตรวจฉบับแรก…';
+      try { const pd = (await API('getInsp', {id:S.cur.insp.parent})).doc, fuDoc = {insp:{...S.cur.insp, status:S.cur.insp.status}, res:S.cur.res, sig:S.cur.sig};
+        const p = {...pd, insp:JSON.parse(JSON.stringify(pd.insp))}, pf = p.insp.followups || [];
+        if (!pf.some(f => f.no === S.cur.insp.no)) p.insp.followups = pf.concat([{no:S.cur.insp.no, round:S.cur.insp.round, status:'draft'}]);
+        // ข้อ 6/7 ของ ตส.1: ใส่ผลครั้งนี้ไว้ด้วย แม้ยังไม่ปิดการตรวจติดตาม
+        const fc = fuCalc(), rk = 'f' + S.cur.insp.round; p.res = JSON.parse(JSON.stringify(p.res || {})); p.res.fu = p.res.fu || {};
+        p.res.fu[rk] = Object.assign({}, p.res.fu[rk], {date:S.cur.insp.date, result:S.cur.insp.final || fc.result, by:insList().map(x => x.name).join(', '), ref:S.cur.insp.no, mode:S.cur.insp.fuMode, fixed:fc.fixed, total:fc.items.length, note:S.cur.res.note || ''});
+        S._fuCombo = {cur:{id:p.insp.no, insp:p.insp, res:p.res, sig:p.sig || {}, version:0, loaded:true}, ov:await loadFuOverlay(p, fuDoc)};
+        const fuCur = S.cur; S.cur = S._fuCombo.cur; const pids = allPhotoIds(); S.cur = fuCur; await loadFiles(pids);
+      } catch (e) { console.warn('fu combo', e); S._fuCombo = null; toast('เปิดแบบตรวจฉบับแรกไม่ได้ สร้างเฉพาะบันทึกการตรวจติดตาม', 5000); } }
+    else if ((S.cur.insp.followups || []).some(f => f.status === 'done')) { try { S._fuOv = await loadFuOverlay({insp:S.cur.insp, res:S.cur.res}); } catch (e) { S._fuOv = null; } }
     await loadFiles(allPhotoIds());
-    const parts = buildReport(); holder.replaceChildren(...parts);
+    let parts; try { parts = buildReport(); } finally { S._fuCombo = null; }
+    holder.replaceChildren(...parts);
     for (const im of holder.querySelectorAll('img')) { if (im.getAttribute('src') && !im.src.startsWith('data:')) im.src = await imgToData(im.src); }
     await Promise.all([...holder.querySelectorAll('img')].map(im => im.decode ? im.decode().catch(() => {}) : 0));
     const fontCSS = $('#rptFontCss').textContent;
@@ -3299,7 +3502,7 @@ async function makePdf(btn, opts = {download:true}) {
       }
     }
     const n = pdf.getNumberOfPages(); for (let k = 1; k <= n; k++) { pdf.setPage(k); pdf.setFontSize(8); pdf.setTextColor(110); pdf.text(k + ' / ' + n, 200, 291, {align:'right'}); }
-    const blob = pdf.output('blob');
+    let blob = pdf.output('blob');
     const fname = (S.cur.insp.no || 'inspection') + ((S.cur.insp.edition || 1) > 1 ? '_ฉบับที่' + S.cur.insp.edition : '') + '_' + (S.cur.insp.pname || '').replace(/[\\/:*?"<>|]/g, '').slice(0, 40) + '.pdf';
     btn.textContent = 'กำลังบันทึกเข้า Drive…';
     const r = await API('savePdf', {id:S.cur.id, b64:await blobToB64(blob), name:fname});
@@ -3310,7 +3513,7 @@ async function makePdf(btn, opts = {download:true}) {
   } catch (e) {
     console.warn(e);
     toast('สร้าง PDF ไม่สำเร็จ: ' + errText(e), 6000); return false;
-  } finally { holder.replaceChildren(); btn.disabled = false; btn.textContent = old; }
+  } finally { holder.replaceChildren(); S._fuOv = null; S._fuCombo = null; btn.disabled = false; btn.textContent = old; }
 }
 
 /* ============ Excel export ============ */
